@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ChatSession, ViewType, WorkspaceFile } from '../types.ts';
-import { Plus, MessageSquare, Trash2, FileCode, Search, FolderOpen } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, FileCode, Search, FolderOpen, UserCircle } from 'lucide-react';
 
 interface SidebarProps {
   sessions: ChatSession[];
@@ -12,16 +12,30 @@ interface SidebarProps {
   activeView: ViewType;
   workspaceFiles: WorkspaceFile[];
   onDeleteFile: (id: string) => void;
+  userEmail?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-  sessions, currentSessionId, onSelectSession, onNewChat, onDeleteSession, activeView, workspaceFiles, onDeleteFile
+  sessions, currentSessionId, onSelectSession, onNewChat, onDeleteSession, activeView, workspaceFiles, onDeleteFile, userEmail
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+
+  const ProfileHeader = () => (
+    <div className="px-4 py-3 bg-[var(--bg-activity)] border-b border-[var(--border)] flex items-center gap-3">
+      <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white shrink-0">
+        <UserCircle className="w-5 h-5" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase text-indigo-400 tracking-wider leading-none mb-1">Developer</div>
+        <div className="text-[11px] text-[var(--text-dim)] truncate font-medium">{userEmail || 'Guest'}</div>
+      </div>
+    </div>
+  );
 
   if (activeView === 'chat') {
     return (
       <div className="w-64 bg-[var(--bg-side)] flex flex-col h-full shrink-0">
+        <ProfileHeader />
         <div className="p-4 border-b border-[var(--border)]">
           <button 
             onClick={onNewChat}
@@ -51,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className="w-64 bg-[var(--bg-side)] flex flex-col h-full shrink-0">
+      <ProfileHeader />
       <div className="p-4 border-b border-[var(--border)]">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-widest flex items-center gap-2">
@@ -62,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <input 
             type="text" 
             placeholder="Search files..." 
-            className="w-full bg-[var(--bg-main)] border border-[var(--border)] rounded-md py-1.5 pl-8 pr-3 text-[10px] focus:outline-none" 
+            className="w-full bg-[var(--bg-main)] border border-[var(--border)] rounded-md py-1.5 pl-8 pr-3 text-[10px] focus:outline-none focus:ring-1 focus:ring-indigo-500/30" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />

@@ -1,6 +1,8 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
+import { supabase } from './lib/supabase.ts';
+import { Auth } from './components/Auth.tsx';
 import { ActivityBar } from './components/ActivityBar.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { ChatArea } from './components/ChatArea.tsx';
@@ -13,6 +15,7 @@ import { generateCodingResponse, generateWorkspaceAgentResponse } from './gemini
 import { Download, Loader2, PanelBottom, CheckCircle, Key } from 'lucide-react';
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ViewType>('chat');
@@ -34,6 +37,21 @@ const App: React.FC = () => {
     };
   });
 
+  // Auth State
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Check for API Key on mount (Required for Gemini 3 Pro)
   useEffect(() => {
     const checkApiKey = async () => {
@@ -44,8 +62,8 @@ const App: React.FC = () => {
         }
       }
     };
-    checkApiKey();
-  }, [settings.modelName]);
+    if (session) checkApiKey();
+  }, [settings.modelName, session]);
 
   const handleOpenKeyDialog = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
@@ -55,39 +73,38 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const savedSessions = localStorage.getItem('cs_sessions');
-    const savedFiles = localStorage.getItem('cs_workspace');
-    const savedLogs = localStorage.getItem('cs_agent_logs');
+    if (!session) return;
+    const userPrefix = session.user.id.slice(0, 8);
+    const savedSessions = localStorage.getItem(`cs_sessions_${userPrefix}`);
+    const savedFiles = localStorage.getItem(`cs_workspace_${userPrefix}`);
+    const savedLogs = localStorage.getItem(`cs_agent_logs_${userPrefix}`);
     
     if (savedSessions) {
       const parsed = JSON.parse(savedSessions);
       setSessions(parsed);
       if (parsed.length > 0) setCurrentSessionId(parsed[0].id);
+    } else {
+      handleNewChat();
     }
     if (savedFiles) setWorkspaceFiles(JSON.parse(savedFiles));
     if (savedLogs) setAgentLogs(JSON.parse(savedLogs));
-    
-    const loader = document.getElementById('loading-state');
-    if (loader) loader.style.display = 'none';
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('theme-oled', settings.theme === 'oled');
   }, [settings.theme]);
 
   useEffect(() => {
+    if (!session) return;
+    const userPrefix = session.user.id.slice(0, 8);
     localStorage.setItem('cs_settings', JSON.stringify(settings));
     if (settings.autoSave) {
-      localStorage.setItem('cs_sessions', JSON.stringify(sessions));
-      localStorage.setItem('cs_workspace', JSON.stringify(workspaceFiles));
-      localStorage.setItem('cs_agent_logs', JSON.stringify(agentLogs));
+      localStorage.setItem(`cs_sessions_${userPrefix}`, JSON.stringify(sessions));
+      localStorage.setItem(`cs_workspace_${userPrefix}`, JSON.stringify(workspaceFiles));
+      localStorage.setItem(`cs_agent_logs_${userPrefix}`, JSON.stringify(agentLogs));
       setLastSaved(new Date().toLocaleTimeString());
     }
-  }, [sessions, workspaceFiles, agentLogs, settings]);
-
-  useEffect(() => {
-    if (sessions.length === 0) handleNewChat();
-  }, [sessions.length]);
+  }, [sessions, workspaceFiles, agentLogs, settings, session]);
 
   const currentSession = useMemo(() => sessions.find(s => s.id === currentSessionId) || null, [sessions, currentSessionId]);
 
@@ -171,6 +188,10 @@ const App: React.FC = () => {
     } finally { setIsExporting(false); }
   };
 
+  if (!session) {
+    return <Auth />;
+  }
+
   if (needsApiKey) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-[var(--bg-main)] p-6">
@@ -180,7 +201,7 @@ const App: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold mb-4">Gemini 3 Pro Required</h1>
           <p className="text-[var(--text-dim)] text-sm mb-8 leading-relaxed">
-            To use the advanced reasoning capabilities of Gemini 3 Pro, you must select your own API key from a paid GCP project.
+            To use the advanced reasoning capabilities of Gemini 3 Pro, you must select your own API key.
             <br/><br/>
             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-indigo-400 underline">Learn about billing</a>
           </p>
@@ -208,6 +229,7 @@ const App: React.FC = () => {
         activeView={activeView}
         workspaceFiles={workspaceFiles}
         onDeleteFile={(id) => setWorkspaceFiles(prev => prev.filter(f => f.id !== id))}
+        userEmail={session.user.email}
       />
 
       <main className="flex flex-1 flex-col min-w-0 border-l border-[var(--border)]">
