@@ -4,7 +4,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CodeScript AI - Developer IDE</title>
+  <title>CodeScript AI - Professional IDE</title>
+  <meta name="description" content="Next-generation coding assistant with integrated workspace and AI agent.">
+  
+  <!-- OpenGraph for Social Sharing -->
+  <meta property="og:title" content="CodeScript AI">
+  <meta property="og:description" content="Build faster with an AI-integrated coding workspace.">
+  <meta property="og:type" content="website">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -116,7 +123,6 @@
       el.innerHTML = `<h1>Critical Boot Error</h1><p>${msg}</p><pre>${error ? error.stack : ''}</pre>`;
     };
     
-    // Fallback to clear loader if React mounts successfully but useEffect hasn't fired
     const observer = new MutationObserver((mutations) => {
       if (document.getElementById('root').children.length > 0) {
         const loader = document.getElementById('loading-state');

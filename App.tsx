@@ -10,7 +10,7 @@ import { Settings } from './components/Settings.tsx';
 import { Terminal } from './components/Terminal.tsx';
 import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types.ts';
 import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService.ts';
-import { Download, Upload, Loader2, PanelBottom, CheckCircle } from 'lucide-react';
+import { Download, Loader2, PanelBottom, CheckCircle, Key } from 'lucide-react';
 
 const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [showTerminal, setShowTerminal] = useState(true);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [needsApiKey, setNeedsApiKey] = useState(false);
   
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('cs_settings');
@@ -32,6 +33,26 @@ const App: React.FC = () => {
       autoSave: true
     };
   });
+
+  // Check for API Key on mount (Required for Gemini 3 Pro)
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey && settings.modelName.includes('pro')) {
+          setNeedsApiKey(true);
+        }
+      }
+    };
+    checkApiKey();
+  }, [settings.modelName]);
+
+  const handleOpenKeyDialog = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      setNeedsApiKey(false);
+    }
+  };
 
   useEffect(() => {
     const savedSessions = localStorage.getItem('cs_sessions');
@@ -46,7 +67,6 @@ const App: React.FC = () => {
     if (savedFiles) setWorkspaceFiles(JSON.parse(savedFiles));
     if (savedLogs) setAgentLogs(JSON.parse(savedLogs));
     
-    // Once loaded, hide the loading screen
     const loader = document.getElementById('loading-state');
     if (loader) loader.style.display = 'none';
   }, []);
@@ -150,6 +170,30 @@ const App: React.FC = () => {
       addAgentLog("Export Failed", 'system');
     } finally { setIsExporting(false); }
   };
+
+  if (needsApiKey) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-[var(--bg-main)] p-6">
+        <div className="max-w-md w-full bg-[var(--bg-side)] border border-[var(--border)] rounded-2xl p-8 shadow-2xl text-center">
+          <div className="w-16 h-16 bg-indigo-600/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/20">
+            <Key className="w-8 h-8 text-indigo-400" />
+          </div>
+          <h1 className="text-2xl font-bold mb-4">Gemini 3 Pro Required</h1>
+          <p className="text-[var(--text-dim)] text-sm mb-8 leading-relaxed">
+            To use the advanced reasoning capabilities of Gemini 3 Pro, you must select your own API key from a paid GCP project.
+            <br/><br/>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-indigo-400 underline">Learn about billing</a>
+          </p>
+          <button 
+            onClick={handleOpenKeyDialog}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95"
+          >
+            Select API Key
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-main)] overflow-hidden">
