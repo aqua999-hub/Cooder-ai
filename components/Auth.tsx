@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase.ts';
+import { supabase } from '../lib/supabase';
 import { LogIn, UserPlus, Loader2, Cpu, Mail, ShieldCheck, AlertCircle, Info } from 'lucide-react';
 
 export const Auth: React.FC = () => {
@@ -26,11 +25,9 @@ export const Auth: React.FC = () => {
         
         if (error) throw error;
 
-        // data.session is present ONLY if confirmation is OFF in Supabase
         if (data.session) {
           setMessage('Account initialized. Accessing terminal...');
         } else if (data.user) {
-          // If data.user exists but session is null, Supabase is still requiring confirmation
           setMessage('Account created! Sign in now to begin (Ensure "Confirm Email" is OFF in Supabase Providers).');
           setIsSignUp(false);
         }
@@ -129,16 +126,6 @@ export const Auth: React.FC = () => {
             >
               {isSignUp ? 'EXISTING USER? LOGIN' : "NEW DEVELOPER? SIGN UP"}
             </button>
-          </div>
-        </div>
-
-        <div className="mt-8 flex flex-col items-center gap-2 opacity-30 select-none">
-          <p className="text-[10px] text-[#b4b4b4] uppercase font-black tracking-[0.3em]">
-            SYSTEM SECURED • AES-256
-          </p>
-          <div className="flex items-center gap-2 text-[8px] text-[#b4b4b4] font-bold">
-            <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse" />
-            NODE STATUS: ONLINE
           </div>
         </div>
       </div>

@@ -1,8 +1,7 @@
-
 import React from 'react';
-import { ChatSession, ViewType } from '../types.ts';
+import { ChatSession, ViewType } from '../types';
 import { Plus, MessageSquare, Trash2, Settings, BarChart3, User, LogOut } from 'lucide-react';
-import { supabase } from '../lib/supabase.ts';
+import { supabase } from '../lib/supabase';
 
 interface SidebarProps {
   sessions: ChatSession[];
@@ -10,7 +9,6 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
   onDeleteSession: (id: string) => void;
-  // Simplified to use ViewType directly now that it includes 'profile'
   onSetView: (view: ViewType) => void;
   activeView: ViewType;
   userEmail?: string;

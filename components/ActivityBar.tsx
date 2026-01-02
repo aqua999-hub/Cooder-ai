@@ -1,7 +1,6 @@
-
 import React from 'react';
-import { ViewType } from '../types.ts';
-import { supabase } from '../lib/supabase.ts';
+import { ViewType } from '../types';
+import { supabase } from '../lib/supabase';
 import { MessageSquare, BarChart3, Settings as SettingsIcon, Code2, Cpu, LogOut } from 'lucide-react';
 
 interface ActivityBarProps {
@@ -24,8 +23,8 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeView, onSetView 
   };
 
   return (
-    <div className="w-12 bg-[var(--bg-activity)] border-r border-[var(--border)] flex flex-col items-center py-4 gap-4 shrink-0">
-      <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold mb-4 shadow-lg shadow-indigo-600/20">
+    <div className="w-12 bg-[#171717] border-r border-[#3d3d3d] flex flex-col items-center py-4 gap-4 shrink-0">
+      <div className="w-8 h-8 bg-[#10a37f] rounded-lg flex items-center justify-center text-white font-bold mb-4 shadow-lg shadow-[#10a37f]/20">
         <Cpu className="w-5 h-5" />
       </div>
       
@@ -37,8 +36,8 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeView, onSetView 
             title={item.label}
             className={`p-2 rounded-lg transition-all ${
               activeView === item.id 
-                ? 'text-indigo-400 bg-indigo-500/10' 
-                : 'text-[var(--text-dim)] hover:text-white hover:bg-[var(--bg-hover)]'
+                ? 'text-[#10a37f] bg-[#10a37f]/10' 
+                : 'text-[#b4b4b4] hover:text-white hover:bg-[#2f2f2f]'
             }`}
           >
             <item.icon className="w-5 h-5" />
@@ -49,7 +48,7 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeView, onSetView 
       <button
         onClick={handleLogout}
         title="Sign Out"
-        className="p-2 rounded-lg text-[var(--text-dim)] hover:text-red-400 hover:bg-red-400/10 transition-all mt-auto"
+        className="p-2 rounded-lg text-[#b4b4b4] hover:text-red-400 hover:bg-red-400/10 transition-all mt-auto"
       >
         <LogOut className="w-5 h-5" />
       </button>

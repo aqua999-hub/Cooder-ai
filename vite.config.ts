@@ -1,15 +1,11 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
   define: {
-    // This shims process.env so the Gemini SDK can access the API key 
-    // without causing a runtime error in the browser.
-    'process.env': {
-      API_KEY: process.env.API_KEY
-    }
+    // Stringify the API key to ensure it's treated as a constant string in the bundle
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
   },
   build: {
     chunkSizeWarningLimit: 2000,
@@ -17,8 +13,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-icons': ['lucide-react'],
-          'vendor-utils': ['jszip', '@google/genai', '@supabase/supabase-js']
+          'vendor-lib': ['@google/genai', '@supabase/supabase-js', 'jszip'],
+          'vendor-ui': ['lucide-react', 'react-markdown', 'remark-gfm']
         }
       }
     }

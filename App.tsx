@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from './lib/supabase';
 import { Auth } from './components/Auth';
