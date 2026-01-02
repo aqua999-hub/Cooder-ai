@@ -4,17 +4,22 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Stringify the API key to ensure it's treated as a constant string in the bundle
+    // Inject the environment variable safely into the client bundle
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
   },
   build: {
-    chunkSizeWarningLimit: 2000,
+    // Increase the limit slightly and use aggressive chunking
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-lib': ['@google/genai', '@supabase/supabase-js', 'jszip'],
-          'vendor-ui': ['lucide-react', 'react-markdown', 'remark-gfm']
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@google/genai')) return 'vendor-ai';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('react-markdown') || id.includes('remark-gfm')) return 'vendor-markdown';
+            if (id.includes('@supabase')) return 'vendor-db';
+            return 'vendor-core';
+          }
         }
       }
     }
