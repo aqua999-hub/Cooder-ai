@@ -1,14 +1,16 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
-import { Sidebar } from './components/Sidebar';
-import { ChatArea } from './components/ChatArea';
-import { CodeWorkspace } from './components/CodeWorkspace';
-import { Dashboard } from './components/Dashboard';
-import { Settings } from './components/Settings';
-import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types';
-import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService';
-import { MessageSquare, Layout, Download, Upload, Loader2, Settings as SettingsIcon, BarChart3, AlertCircle } from 'lucide-react';
+import { ActivityBar } from './components/ActivityBar.tsx';
+import { Sidebar } from './components/Sidebar.tsx';
+import { ChatArea } from './components/ChatArea.tsx';
+import { CodeWorkspace } from './components/CodeWorkspace.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { Settings } from './components/Settings.tsx';
+import { Terminal } from './components/Terminal.tsx';
+import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types.ts';
+import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService.ts';
+import { Download, Upload, Loader2, PanelBottom, CheckCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -18,6 +20,9 @@ const App: React.FC = () => {
   const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(true);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('cs_settings');
     return saved ? JSON.parse(saved) : {
@@ -28,7 +33,6 @@ const App: React.FC = () => {
     };
   });
 
-  // Load persistence
   useEffect(() => {
     const savedSessions = localStorage.getItem('cs_sessions');
     const savedFiles = localStorage.getItem('cs_workspace');
@@ -41,24 +45,23 @@ const App: React.FC = () => {
     }
     if (savedFiles) setWorkspaceFiles(JSON.parse(savedFiles));
     if (savedLogs) setAgentLogs(JSON.parse(savedLogs));
+    
+    // Once loaded, hide the loading screen
+    const loader = document.getElementById('loading-state');
+    if (loader) loader.style.display = 'none';
   }, []);
 
-  // Theme application
   useEffect(() => {
-    if (settings.theme === 'oled') {
-      document.documentElement.classList.add('theme-oled');
-    } else {
-      document.documentElement.classList.remove('theme-oled');
-    }
+    document.documentElement.classList.toggle('theme-oled', settings.theme === 'oled');
   }, [settings.theme]);
 
-  // Save persistence - settings ALWAYS persist, data respects autoSave flag
   useEffect(() => {
     localStorage.setItem('cs_settings', JSON.stringify(settings));
     if (settings.autoSave) {
       localStorage.setItem('cs_sessions', JSON.stringify(sessions));
       localStorage.setItem('cs_workspace', JSON.stringify(workspaceFiles));
       localStorage.setItem('cs_agent_logs', JSON.stringify(agentLogs));
+      setLastSaved(new Date().toLocaleTimeString());
     }
   }, [sessions, workspaceFiles, agentLogs, settings]);
 
@@ -67,6 +70,10 @@ const App: React.FC = () => {
   }, [sessions.length]);
 
   const currentSession = useMemo(() => sessions.find(s => s.id === currentSessionId) || null, [sessions, currentSessionId]);
+
+  const addAgentLog = (msg: string, role: 'user' | 'agent' | 'system', actions?: WorkspaceAction[]) => {
+    setAgentLogs(prev => [...prev, { id: crypto.randomUUID(), msg, role, timestamp: Date.now(), actions }]);
+  };
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!currentSessionId || !content.trim()) return;
@@ -84,7 +91,7 @@ const App: React.FC = () => {
       const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: response, timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
     } catch (err) {
-      console.error("Chat Error:", err);
+      addAgentLog(`Chat Error: ${err instanceof Error ? err.message : 'Unknown'}`, 'system');
     } finally { setIsLoading(false); }
   }, [currentSessionId, currentSession, workspaceFiles, settings.modelName]);
 
@@ -95,35 +102,36 @@ const App: React.FC = () => {
     setActiveView('chat');
   };
 
-  const handleZipImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsLoading(true);
-    try {
-      const zip = new JSZip();
-      const content = await zip.loadAsync(file);
-      const newFiles: WorkspaceFile[] = [];
-      const promises: Promise<void>[] = [];
-      
-      content.forEach((path, zipFile) => {
-        if (!zipFile.dir) {
-          promises.push((async () => {
-            const fileContent = await zipFile.async('string');
-            const extension = path.split('.').pop() || 'txt';
-            newFiles.push({ id: crypto.randomUUID(), name: path, content: fileContent, language: extension });
-          })());
+  const applyWorkspaceActions = useCallback((actions: WorkspaceAction[]) => {
+    setWorkspaceFiles(prev => {
+      let next = [...prev];
+      actions.forEach(action => {
+        const idx = next.findIndex(f => f.name === action.fileName);
+        if (action.type === 'CREATE' || action.type === 'UPDATE') {
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], content: action.content || '' };
+          } else {
+            next.push({ id: crypto.randomUUID(), name: action.fileName, content: action.content || '', language: action.fileName.split('.').pop() || 'txt' });
+          }
+        } else if (action.type === 'DELETE' && idx !== -1) {
+          next.splice(idx, 1);
         }
       });
-      
-      await Promise.all(promises);
-      setWorkspaceFiles(newFiles);
-      setActiveView('workspace');
-      addAgentLog('Project Import', `Imported ${newFiles.length} files from ${file.name}`, 'system');
-    } catch (error) { 
-      console.error("Import Error:", error); 
-    } finally { 
-      setIsLoading(false); 
-    }
+      return next;
+    });
+  }, []);
+
+  const handleWorkspaceAgentSubmit = async (prompt: string) => {
+    if (!prompt.trim()) return;
+    addAgentLog(prompt, 'user');
+    setIsLoading(true);
+    try {
+      const result = await generateWorkspaceAgentResponse(prompt, workspaceFiles, settings.modelName);
+      applyWorkspaceActions(result.actions);
+      addAgentLog(result.explanation, 'agent', result.actions);
+    } catch (err) {
+      addAgentLog(`Agent Error: Failed to execute.`, 'system');
+    } finally { setIsLoading(false); }
   };
 
   const exportProject = async () => {
@@ -135,78 +143,18 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `codescript_export_${Date.now()}.zip`;
+      a.download = `codescript_project_${Date.now()}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Export Error:", err);
+      addAgentLog("Export Failed", 'system');
     } finally { setIsExporting(false); }
   };
 
-  const addAgentLog = (title: string, msg: string, role: 'user' | 'agent' | 'system', actions?: WorkspaceAction[]) => {
-    setAgentLogs(prev => [...prev, { id: crypto.randomUUID(), msg, role, timestamp: Date.now(), actions }]);
-  };
-
-  const applyWorkspaceActions = useCallback((actions: WorkspaceAction[]) => {
-    setWorkspaceFiles(prev => {
-      let next = [...prev];
-      actions.forEach(action => {
-        if (action.type === 'CREATE') {
-          const exists = next.findIndex(f => f.name === action.fileName);
-          if (exists !== -1) {
-            next[exists] = { ...next[exists], content: action.content || '' };
-          } else {
-            next.push({ id: crypto.randomUUID(), name: action.fileName, content: action.content || '', language: action.fileName.split('.').pop() || 'txt' });
-          }
-        } else if (action.type === 'UPDATE') {
-          next = next.map(f => f.name === action.fileName ? { ...f, content: action.content || f.content } : f);
-        } else if (action.type === 'DELETE') {
-          next = next.filter(f => f.name !== action.fileName);
-        }
-      });
-      return next;
-    });
-  }, []);
-
-  const handleWorkspaceAgentSubmit = async (prompt: string) => {
-    if (!prompt.trim()) return;
-    addAgentLog('User Task', prompt, 'user');
-    setIsLoading(true);
-    try {
-      const result = await generateWorkspaceAgentResponse(prompt, workspaceFiles, settings.modelName);
-      applyWorkspaceActions(result.actions);
-      addAgentLog('Agent Response', result.explanation, 'agent', result.actions);
-    } catch (err) {
-      addAgentLog('System Error', "Failed to execute agent commands. Verify your project structure or API connection.", 'system');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const renderView = () => {
-    switch (activeView) {
-      case 'chat':
-        return <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} />;
-      case 'workspace':
-        return <CodeWorkspace 
-          files={workspaceFiles} 
-          logs={agentLogs}
-          isThinking={isLoading}
-          onDeleteFile={(id) => setWorkspaceFiles(prev => prev.filter(f => f.id !== id))} 
-          onAgentSubmit={handleWorkspaceAgentSubmit}
-          fontSize={settings.fontSize}
-        />;
-      case 'dashboard':
-        return <Dashboard files={workspaceFiles} logs={agentLogs} />;
-      case 'settings':
-        return <Settings settings={settings} onUpdate={setSettings} />;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className={`flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-main)] selection:bg-indigo-500/30 overflow-hidden`}>
+    <div className="flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-main)] overflow-hidden">
+      <ActivityBar activeView={activeView} onSetView={setActiveView} />
+      
       <Sidebar 
         sessions={sessions} 
         currentSessionId={currentSessionId} 
@@ -214,32 +162,58 @@ const App: React.FC = () => {
         onNewChat={handleNewChat} 
         onDeleteSession={(id) => setSessions(prev => prev.filter(s => s.id !== id))}
         activeView={activeView}
-        onSetView={setActiveView}
+        workspaceFiles={workspaceFiles}
+        onDeleteFile={(id) => setWorkspaceFiles(prev => prev.filter(f => f.id !== id))}
       />
 
-      <main className="flex flex-1 flex-col min-w-0">
-        <header className="h-14 border-b border-[var(--border)] flex items-center justify-between px-6 bg-[var(--bg-main)]/90 backdrop-blur shrink-0 z-30">
+      <main className="flex flex-1 flex-col min-w-0 border-l border-[var(--border)]">
+        <header className="h-10 border-b border-[var(--border)] flex items-center justify-between px-4 bg-[var(--bg-main)]/90 shrink-0 z-30">
           <div className="flex items-center gap-4">
-            <h1 className="text-sm font-bold tracking-tight text-[#f0f6fc]">
-              {activeView.toUpperCase()} <span className="text-[var(--text-dim)] mx-2">/</span> 
-              <span className="font-normal text-[var(--text-dim)]">
-                {activeView === 'chat' ? (currentSession?.title || 'New Session') : 'IDE Project Workspace'}
-              </span>
-            </h1>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-dim)] flex items-center gap-2">
+              {activeView} <span className="text-[var(--border)]">/</span> {activeView === 'chat' ? (currentSession?.title || 'Main') : 'Project'}
+            </span>
+            {lastSaved && settings.autoSave && (
+              <div className="flex items-center gap-1.5 text-[9px] text-green-500/60 font-medium">
+                <CheckCircle className="w-3 h-3" /> Auto-saved {lastSaved}
+              </div>
+            )}
           </div>
-
           <div className="flex items-center gap-3">
-            <label className="text-[11px] bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-[#c9d1d9] px-3 py-1.5 rounded-md cursor-pointer transition-all font-semibold flex items-center gap-2">
-              <Upload className="w-3.5 h-3.5" /> Import ZIP <input type="file" className="hidden" accept=".zip" onChange={handleZipImport} />
-            </label>
-            <button onClick={exportProject} disabled={workspaceFiles.length === 0 || isExporting} className="text-[11px] bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-2 shadow-lg shadow-indigo-500/10">
-              {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Export ZIP
+            <div className="flex items-center gap-2 px-2 border-r border-[var(--border)] mr-1">
+              <span className="text-[9px] font-mono text-[var(--text-dim)] bg-[var(--bg-activity)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                {workspaceFiles.length} FILES
+              </span>
+            </div>
+            <button 
+              onClick={exportProject}
+              disabled={workspaceFiles.length === 0 || isExporting}
+              className="p-1.5 text-[var(--text-dim)] hover:text-white rounded transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight"
+            >
+              {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              Export
+            </button>
+            <button 
+              onClick={() => setShowTerminal(!showTerminal)}
+              className={`p-1.5 rounded transition-colors ${showTerminal ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-dim)] hover:text-white'}`}
+            >
+              <PanelBottom className="w-3.5 h-3.5" />
             </button>
           </div>
         </header>
 
-        <div className="flex-1 relative overflow-hidden bg-[var(--bg-main)]">
-          {renderView()}
+        <div className="flex-1 relative overflow-hidden flex flex-col">
+          <div className="flex-1 relative">
+            {activeView === 'chat' && <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} />}
+            {activeView === 'workspace' && <CodeWorkspace files={workspaceFiles} fontSize={settings.fontSize} isThinking={isLoading} onAgentSubmit={handleWorkspaceAgentSubmit} />}
+            {activeView === 'dashboard' && <Dashboard files={workspaceFiles} logs={agentLogs} />}
+            {activeView === 'settings' && <Settings settings={settings} onUpdate={setSettings} />}
+          </div>
+          
+          {showTerminal && (
+            <div className="h-48 border-t border-[var(--border)] bg-[var(--bg-side)]">
+              <Terminal logs={agentLogs} onClear={() => setAgentLogs([])} />
+            </div>
+          )}
         </div>
       </main>
     </div>

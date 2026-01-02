@@ -11,18 +11,14 @@ export const generateCodingResponse = async (
 ) => {
   try {
     const contextFiles = workspaceFiles
-      .map(f => `FILE: ${f.name}\nLANGUAGE: ${f.language}\nCONTENT:\n${f.content}`)
+      .map(f => `FILE: ${f.name}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');
 
-    const systemInstruction = `You are CodeScript, a senior full-stack engineer. 
-    You excel at refactoring, debugging, and explaining complex logic.
-    Current Workspace Context:
-    ${contextFiles || 'Workspace is empty.'}
+    const systemInstruction = `You are CodeScript, a specialized AI coding assistant. 
+    Current Workspace:
+    ${contextFiles || 'Empty.'}
     
-    GUIDELINES:
-    1. Provide code snippets using Markdown syntax.
-    2. Suggest best practices and performance optimizations.
-    3. If the user wants to modify files, remind them to use the "Workspace AI" tab for direct file manipulation.`;
+    Focus on technical accuracy and code quality.`;
 
     const response = await ai.models.generateContent({
       model: modelName,
@@ -32,15 +28,14 @@ export const generateCodingResponse = async (
       })),
       config: { 
         systemInstruction, 
-        temperature: 0.7,
-        thinkingConfig: { thinkingBudget: modelName.includes('pro') ? 4000 : 0 }
+        temperature: 0.2
       },
     });
 
-    return response.text || "I was unable to process your request.";
+    return response.text || "No response generated.";
   } catch (error) {
-    console.error("Chat Generation Error:", error);
-    return "Error generating response. Please check your network or try a shorter prompt.";
+    console.error("Chat Error:", error);
+    return "Error generating response.";
   }
 };
 
@@ -56,17 +51,9 @@ export const generateWorkspaceAgentResponse = async (
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `COMMAND: ${prompt}\n\nWORKSPACE:\n${contextFiles || 'Empty workspace.'}`,
+      contents: `COMMAND: ${prompt}\n\nWORKSPACE:\n${contextFiles}`,
       config: {
-        systemInstruction: `You are the CodeScript Workspace Agent. You have direct file system access.
-        YOUR JOB: Translate user commands into specific file operations (CREATE, UPDATE, DELETE).
-        
-        RULES:
-        1. CREATE: Use for new files.
-        2. UPDATE: Provide the FULL file content for modified files.
-        3. DELETE: Use only if explicitly requested.
-        4. Always explain your rationale in the "explanation" field.
-        5. RESPOND ONLY IN JSON.`,
+        systemInstruction: `CodeScript Workspace Agent. Respond ONLY with valid JSON matching the schema. Translate commands to file actions.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -87,14 +74,13 @@ export const generateWorkspaceAgentResponse = async (
             }
           },
           required: ["explanation", "actions"]
-        },
-        thinkingConfig: { thinkingBudget: modelName.includes('pro') ? 8000 : 0 }
+        }
       },
     });
 
-    return JSON.parse(response.text || '{"explanation": "No changes made", "actions": []}');
+    return JSON.parse(response.text || '{"explanation": "Error", "actions": []}');
   } catch (error) {
-    console.error("Agent Generation Error:", error);
+    console.error("Agent Error:", error);
     throw error;
   }
 };
