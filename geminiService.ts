@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, WorkspaceFile, WorkspaceAction } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Note: Removed global `ai` instance to comply with the guideline of creating it 
+// right before API calls to capture any API key updates from the user dialog.
 
 export const generateCodingResponse = async (
   messages: Message[],
@@ -10,6 +11,9 @@ export const generateCodingResponse = async (
   modelName: string = 'gemini-3-pro-preview'
 ) => {
   try {
+    // Instantiate a new GoogleGenAI right before the request
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const contextFiles = workspaceFiles
       .map(f => `FILE: ${f.name}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');
@@ -45,6 +49,9 @@ export const generateWorkspaceAgentResponse = async (
   modelName: string = 'gemini-3-pro-preview'
 ): Promise<{ explanation: string; actions: WorkspaceAction[] }> => {
   try {
+    // Instantiate a new GoogleGenAI right before the request
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
     const contextFiles = workspaceFiles
       .map(f => `NAME: ${f.name}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');

@@ -34,7 +34,8 @@ export interface AgentLogEntry {
   actions?: WorkspaceAction[];
 }
 
-export type ViewType = 'chat' | 'workspace' | 'dashboard' | 'settings';
+// Fixed: Added 'profile' to the ViewType union to allow rendering the profile component and selection from sidebar
+export type ViewType = 'chat' | 'workspace' | 'dashboard' | 'settings' | 'profile';
 
 export interface AppSettings {
   modelName: string;

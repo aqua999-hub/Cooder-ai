@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { WorkspaceFile } from '../types.ts';
-import { Send, Sparkles, Loader2, Code, Zap, FileText, Bug, Copy, Check, ChevronRight } from 'lucide-react';
+import { Send, Sparkles, Loader2, Code, Zap, FileText, Bug, Copy, Check, ChevronRight, X } from 'lucide-react';
 
 interface CodeWorkspaceProps {
   files: WorkspaceFile[];
   isThinking: boolean;
   onAgentSubmit: (prompt: string) => void;
   fontSize: number;
+  onClose: () => void;
 }
 
-export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, isThinking, onAgentSubmit, fontSize }) => {
+export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, isThinking, onAgentSubmit, fontSize, onClose }) => {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [agentInput, setAgentInput] = useState('');
   const [copied, setCopied] = useState(false);
@@ -36,117 +37,77 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, isThinking,
     }
   };
 
-  const quickActions = [
-    { label: 'Fix Bugs', icon: Bug, prompt: 'Find and fix common bugs in this file' },
-    { label: 'Add Tests', icon: Zap, prompt: 'Generate comprehensive unit tests for this file' },
-    { label: 'Refactor', icon: Code, prompt: 'Improve performance and readability of this file' },
-    { label: 'Document', icon: FileText, prompt: 'Add JSDoc comments to this file' },
-  ];
-
   return (
-    <div className="flex h-full w-full bg-[var(--bg-main)]">
-      <div className="flex-1 flex flex-col min-w-0">
-        {selectedFile ? (
-          <>
-            <div className="h-9 px-4 border-b border-[var(--border)] bg-[var(--bg-side)]/40 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider">
-                <FileText className="w-3 h-3 text-indigo-400" />
-                <span>workspace</span>
-                <ChevronRight className="w-3 h-3 opacity-30" />
-                <span className="text-white">{selectedFile.name}</span>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-indigo-400 hover:text-white hover:bg-indigo-500/10 rounded transition-all"
-                >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-                <div className="w-px h-3 bg-[var(--border)] self-center mx-1" />
-                {quickActions.map(act => (
-                  <button 
-                    key={act.label} 
-                    onClick={() => onAgentSubmit(`${act.prompt}: ${selectedFile.name}`)}
-                    className="flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[var(--text-dim)] hover:text-white hover:bg-[var(--bg-hover)] rounded transition-all"
-                  >
-                    <act.icon className="w-3 h-3" /> {act.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto custom-scrollbar flex">
-              <div className="w-10 border-r border-[var(--border)] bg-[var(--bg-side)]/40 flex flex-col items-end py-4 pr-3 select-none text-[#30363d] font-mono text-[10px] shrink-0">
-                {selectedFile.content.split('\n').map((_, i) => <span key={i} className="leading-6">{i + 1}</span>)}
-              </div>
-              <pre className="flex-1 p-4 code-font leading-6 whitespace-pre text-[#d1d7e0] overflow-visible selection:bg-indigo-500/30" style={{ fontSize: `${fontSize}px` }}>
-                {selectedFile.content}
-              </pre>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center opacity-30">
-            <div className="w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center mb-6 border border-indigo-500/20">
-              <Code className="w-8 h-8 text-indigo-400" />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Editor Context Ready</h3>
-            <p className="max-w-xs text-sm">Select a file from the explorer sidebar or type a prompt in the Workspace Agent to generate a new project structure.</p>
-          </div>
-        )}
+    <div className="flex h-full flex-col bg-[#171717] overflow-hidden">
+      <div className="h-14 px-4 border-b border-[#3d3d3d] flex items-center justify-between shrink-0 bg-[#212121]">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+          <Code className="w-4 h-4 text-[#10a37f]" />
+          <span>Workspace</span>
+        </div>
+        <button onClick={onClose} className="p-1 hover:bg-[#2f2f2f] rounded text-[#b4b4b4]">
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
-      <aside className="w-80 border-l border-[var(--border)] bg-[var(--bg-side)] flex flex-col shrink-0">
-        <div className="p-4 border-b border-[var(--border)] bg-[var(--bg-activity)]">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white">Workspace Agent</span>
-          </div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-6">
+        {/* File List */}
+        <div className="space-y-1">
+          <h4 className="text-[10px] font-bold text-[#b4b4b4] uppercase tracking-widest px-2 mb-2">Files</h4>
+          {files.map(file => (
+            <button 
+              key={file.id} 
+              onClick={() => setSelectedFileId(file.id)}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${selectedFileId === file.id ? 'bg-[#2f2f2f] text-white' : 'text-[#b4b4b4] hover:bg-[#2f2f2f]/50'}`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="truncate">{file.name}</span>
+            </button>
+          ))}
+          {files.length === 0 && <p className="text-[11px] text-[#4d4d4d] italic px-2">No files generated yet.</p>}
         </div>
-        <div className="flex-1 p-4 overflow-y-auto custom-scrollbar bg-gradient-to-b from-[var(--bg-side)] to-[var(--bg-main)]">
-          <p className="text-[11px] text-[var(--text-dim)] mb-4 italic leading-relaxed">
-            Direct file system controller. I can perform bulk operations, refactor entire directories, and initialize complex boilerplate.
-          </p>
-          <div className="space-y-2 mb-6">
-            <h4 className="text-[9px] font-bold uppercase tracking-widest text-indigo-500/70">Suggested Tasks</h4>
-            {['Setup React project', 'Add Tailwind config', 'Refactor all exports'].map(task => (
-              <button 
-                key={task} 
-                onClick={() => setAgentInput(task)}
-                className="w-full text-left px-3 py-2 text-[10px] bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border)] rounded-md transition-colors text-[var(--text-dim)] hover:text-white"
-              >
-                {task}
+
+        {/* Editor Preview */}
+        {selectedFile && (
+          <div className="flex-1 flex flex-col bg-[#212121] rounded-xl border border-[#3d3d3d] overflow-hidden">
+            <div className="px-3 py-2 border-b border-[#3d3d3d] bg-[#2f2f2f]/30 flex justify-between items-center">
+              <span className="text-[10px] font-mono text-[#b4b4b4]">{selectedFile.name}</span>
+              <button onClick={handleCopy} className="text-[#10a37f] hover:text-white transition-colors">
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
-            ))}
-          </div>
-          {isThinking && (
-            <div className="flex items-center gap-3 p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-lg animate-pulse text-indigo-400 shadow-xl">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-[11px] font-bold uppercase tracking-widest">Applying Workspace Logic...</span>
             </div>
-          )}
-        </div>
-        <div className="p-4 border-t border-[var(--border)] bg-[var(--bg-side)]">
+            <pre className="p-4 code-font text-[11px] overflow-auto custom-scrollbar text-[#ececec] leading-relaxed">
+              {selectedFile.content}
+            </pre>
+          </div>
+        )}
+
+        {/* Agent Controller */}
+        <div className="mt-auto pt-4 border-t border-[#3d3d3d]">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-[#10a37f]" />
+            <span className="text-[10px] font-bold uppercase text-white">Project Agent</span>
+          </div>
           <form onSubmit={handleSubmit} className="relative">
             <textarea 
               value={agentInput}
               onChange={(e) => setAgentInput(e.target.value)}
-              placeholder="E.g. Create a landing page in index.html..."
-              className="w-full bg-[var(--bg-main)] border border-[var(--border)] rounded-lg p-3 pr-10 text-[11px] focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none min-h-[100px] transition-all placeholder:opacity-50"
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }}
+              placeholder="Refactor this project..."
+              className="w-full bg-[#2f2f2f] border border-[#3d3d3d] rounded-xl p-3 text-[11px] focus:ring-1 focus:ring-[#10a37f] focus:outline-none resize-none min-h-[80px]"
             />
             <button 
               disabled={isThinking || !agentInput.trim()} 
-              className="absolute right-2.5 bottom-2.5 p-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-all shadow-lg active:scale-90 disabled:opacity-30 disabled:grayscale"
+              className="absolute right-2 bottom-2 p-2 bg-[#10a37f] text-white rounded-lg disabled:opacity-30"
             >
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-4 h-4" />
             </button>
           </form>
-          <div className="mt-3 flex items-center justify-center gap-1 opacity-30">
-            <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[8px] font-bold uppercase tracking-widest">Agent Live</span>
-          </div>
+          {isThinking && (
+            <div className="mt-3 flex items-center gap-2 text-[#10a37f] text-[10px] font-bold uppercase animate-pulse">
+              <Loader2 className="w-3 h-3 animate-spin" /> Working...
+            </div>
+          )}
         </div>
-      </aside>
+      </div>
     </div>
   );
 };
