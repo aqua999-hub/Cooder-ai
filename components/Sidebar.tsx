@@ -29,8 +29,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <div className="w-64 bg-[#010409] border-r border-[#30363d] flex flex-col h-full z-20 shrink-0">
-      <div className="p-4 border-b border-[#30363d] mb-4">
+    <div className="w-64 bg-[var(--bg-side)] border-r border-[var(--border)] flex flex-col h-full z-20 shrink-0">
+      <div className="p-4 border-b border-[var(--border)] mb-4">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-600/20">C</div>
           <span className="font-bold text-sm tracking-tight">CodeScript AI</span>
@@ -50,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               onClick={() => onSetView(item.id as ViewType)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs transition-all ${
-                activeView === item.id ? 'bg-[#161b22] text-white' : 'text-[#8b949e] hover:text-white hover:bg-[#161b22]/50'
+                activeView === item.id ? 'bg-[var(--bg-hover)] text-white' : 'text-[var(--text-dim)] hover:text-white hover:bg-[var(--bg-hover)]/50'
               }`}
             >
               <item.icon className={`w-4 h-4 ${activeView === item.id ? 'text-indigo-400' : ''}`} />
@@ -71,13 +71,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div 
                   key={session.id}
                   className={`group relative rounded-md transition-all ${
-                    currentSessionId === session.id && activeView === 'chat' ? 'bg-[#161b22]' : 'hover:bg-[#161b22]/50'
+                    currentSessionId === session.id && activeView === 'chat' ? 'bg-[var(--bg-hover)]' : 'hover:bg-[var(--bg-hover)]/50'
                   }`}
                 >
                   <button
                     onClick={() => onSelectSession(session.id)}
                     className={`w-full text-left px-3 py-2 text-xs truncate flex items-center gap-3 pr-8 ${
-                      currentSessionId === session.id && activeView === 'chat' ? 'text-[#f0f6fc]' : 'text-[#8b949e]'
+                      currentSessionId === session.id && activeView === 'chat' ? 'text-[#f0f6fc]' : 'text-[var(--text-dim)]'
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
@@ -96,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="p-4 border-t border-[#30363d] bg-[#0d1117]/50">
+      <div className="p-4 border-t border-[var(--border)] bg-[var(--bg-main)]/50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">
             JD

@@ -28,7 +28,7 @@ const App: React.FC = () => {
     };
   });
 
-  // Persistence effects
+  // Load persistence
   useEffect(() => {
     const savedSessions = localStorage.getItem('cs_sessions');
     const savedFiles = localStorage.getItem('cs_workspace');
@@ -43,12 +43,22 @@ const App: React.FC = () => {
     if (savedLogs) setAgentLogs(JSON.parse(savedLogs));
   }, []);
 
+  // Theme application
   useEffect(() => {
+    if (settings.theme === 'oled') {
+      document.documentElement.classList.add('theme-oled');
+    } else {
+      document.documentElement.classList.remove('theme-oled');
+    }
+  }, [settings.theme]);
+
+  // Save persistence - settings ALWAYS persist, data respects autoSave flag
+  useEffect(() => {
+    localStorage.setItem('cs_settings', JSON.stringify(settings));
     if (settings.autoSave) {
       localStorage.setItem('cs_sessions', JSON.stringify(sessions));
       localStorage.setItem('cs_workspace', JSON.stringify(workspaceFiles));
       localStorage.setItem('cs_agent_logs', JSON.stringify(agentLogs));
-      localStorage.setItem('cs_settings', JSON.stringify(settings));
     }
   }, [sessions, workspaceFiles, agentLogs, settings]);
 
@@ -70,13 +80,13 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await generateCodingResponse([...(currentSession?.messages || []), userMsg], workspaceFiles);
+      const response = await generateCodingResponse([...(currentSession?.messages || []), userMsg], workspaceFiles, settings.modelName);
       const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: response, timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
     } catch (err) {
       console.error("Chat Error:", err);
     } finally { setIsLoading(false); }
-  }, [currentSessionId, currentSession, workspaceFiles]);
+  }, [currentSessionId, currentSession, workspaceFiles, settings.modelName]);
 
   const handleNewChat = () => {
     const newSession: ChatSession = { id: crypto.randomUUID(), title: 'New Coding Chat', messages: [] };
@@ -163,7 +173,7 @@ const App: React.FC = () => {
     addAgentLog('User Task', prompt, 'user');
     setIsLoading(true);
     try {
-      const result = await generateWorkspaceAgentResponse(prompt, workspaceFiles);
+      const result = await generateWorkspaceAgentResponse(prompt, workspaceFiles, settings.modelName);
       applyWorkspaceActions(result.actions);
       addAgentLog('Agent Response', result.explanation, 'agent', result.actions);
     } catch (err) {
@@ -176,7 +186,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (activeView) {
       case 'chat':
-        return <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} />;
+        return <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} />;
       case 'workspace':
         return <CodeWorkspace 
           files={workspaceFiles} 
@@ -196,7 +206,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={`flex h-screen w-full bg-[#0d1117] text-[#e6edf3] selection:bg-indigo-500/30 overflow-hidden ${settings.theme === 'oled' ? 'bg-black' : ''}`}>
+    <div className={`flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-main)] selection:bg-indigo-500/30 overflow-hidden`}>
       <Sidebar 
         sessions={sessions} 
         currentSessionId={currentSessionId} 
@@ -208,11 +218,11 @@ const App: React.FC = () => {
       />
 
       <main className="flex flex-1 flex-col min-w-0">
-        <header className="h-14 border-b border-[#30363d] flex items-center justify-between px-6 bg-[#0d1117]/90 backdrop-blur shrink-0 z-30">
+        <header className="h-14 border-b border-[var(--border)] flex items-center justify-between px-6 bg-[var(--bg-main)]/90 backdrop-blur shrink-0 z-30">
           <div className="flex items-center gap-4">
             <h1 className="text-sm font-bold tracking-tight text-[#f0f6fc]">
-              {activeView.toUpperCase()} <span className="text-[#8b949e] mx-2">/</span> 
-              <span className="font-normal text-[#8b949e]">
+              {activeView.toUpperCase()} <span className="text-[var(--text-dim)] mx-2">/</span> 
+              <span className="font-normal text-[var(--text-dim)]">
                 {activeView === 'chat' ? (currentSession?.title || 'New Session') : 'IDE Project Workspace'}
               </span>
             </h1>
@@ -228,7 +238,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 relative overflow-hidden bg-[#0d1117]">
+        <div className="flex-1 relative overflow-hidden bg-[var(--bg-main)]">
           {renderView()}
         </div>
       </main>

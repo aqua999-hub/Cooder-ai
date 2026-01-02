@@ -6,7 +6,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateCodingResponse = async (
   messages: Message[],
-  workspaceFiles: WorkspaceFile[]
+  workspaceFiles: WorkspaceFile[],
+  modelName: string = 'gemini-3-pro-preview'
 ) => {
   try {
     const contextFiles = workspaceFiles
@@ -24,7 +25,7 @@ export const generateCodingResponse = async (
     3. If the user wants to modify files, remind them to use the "Workspace AI" tab for direct file manipulation.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: modelName,
       contents: messages.map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]
@@ -32,7 +33,7 @@ export const generateCodingResponse = async (
       config: { 
         systemInstruction, 
         temperature: 0.7,
-        thinkingConfig: { thinkingBudget: 4000 }
+        thinkingConfig: { thinkingBudget: modelName.includes('pro') ? 4000 : 0 }
       },
     });
 
@@ -45,7 +46,8 @@ export const generateCodingResponse = async (
 
 export const generateWorkspaceAgentResponse = async (
   prompt: string,
-  workspaceFiles: WorkspaceFile[]
+  workspaceFiles: WorkspaceFile[],
+  modelName: string = 'gemini-3-pro-preview'
 ): Promise<{ explanation: string; actions: WorkspaceAction[] }> => {
   try {
     const contextFiles = workspaceFiles
@@ -53,7 +55,7 @@ export const generateWorkspaceAgentResponse = async (
       .join('\n\n---\n\n');
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: modelName,
       contents: `COMMAND: ${prompt}\n\nWORKSPACE:\n${contextFiles || 'Empty workspace.'}`,
       config: {
         systemInstruction: `You are the CodeScript Workspace Agent. You have direct file system access.
@@ -86,7 +88,7 @@ export const generateWorkspaceAgentResponse = async (
           },
           required: ["explanation", "actions"]
         },
-        thinkingConfig: { thinkingBudget: 8000 }
+        thinkingConfig: { thinkingBudget: modelName.includes('pro') ? 8000 : 0 }
       },
     });
 

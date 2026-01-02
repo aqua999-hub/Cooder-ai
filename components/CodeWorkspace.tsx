@@ -37,10 +37,10 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#0d1117] animate-fade-in">
+    <div className="flex h-full w-full overflow-hidden bg-[var(--bg-main)] animate-fade-in">
       {/* 1. File Explorer */}
-      <aside className="w-60 border-r border-[#30363d] flex flex-col bg-[#010409] shrink-0">
-        <div className="p-4 border-b border-[#30363d] bg-[#0d1117]/30">
+      <aside className="w-60 border-r border-[var(--border)] flex flex-col bg-[var(--bg-side)] shrink-0">
+        <div className="p-4 border-b border-[var(--border)] bg-[var(--bg-main)]/30">
            <div className="flex items-center justify-between mb-3">
              <span className="text-[10px] font-bold text-[#484f58] uppercase tracking-widest">Project Explorer</span>
              <FileText className="w-3.5 h-3.5 text-[#30363d]" />
@@ -50,7 +50,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
             <input 
               type="text" 
               placeholder="Search files..." 
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md py-1.5 pl-8 pr-3 text-[11px] focus:ring-1 focus:ring-indigo-500 focus:outline-none" 
+              className="w-full bg-[var(--bg-main)] border border-[var(--border)] rounded-md py-1.5 pl-8 pr-3 text-[11px] focus:ring-1 focus:ring-indigo-500 focus:outline-none" 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
             />
@@ -65,7 +65,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
               key={file.id} 
               onClick={() => setSelectedFileId(file.id)} 
               className={`group flex items-center justify-between px-3 py-1.5 cursor-pointer rounded-md mb-0.5 transition-all ${
-                selectedFileId === file.id ? 'bg-[#161b22] text-[#f0f6fc] border border-[#30363d]' : 'text-[#8b949e] hover:bg-[#161b22]/50'
+                selectedFileId === file.id ? 'bg-[var(--bg-hover)] text-[#f0f6fc] border border-[var(--border)]' : 'text-[var(--text-dim)] hover:bg-[var(--bg-hover)]/50'
               }`}
             >
               <div className="flex items-center gap-2 truncate">
@@ -84,11 +84,11 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
       </aside>
 
       {/* 2. Source Editor View */}
-      <section className="flex-1 flex flex-col bg-[#0d1117] relative border-r border-[#30363d] min-w-0">
+      <section className="flex-1 flex flex-col bg-[var(--bg-main)] relative border-r border-[var(--border)] min-w-0">
         {selectedFile ? (
           <>
-            <div className="h-10 px-4 border-b border-[#30363d] bg-[#010409]/30 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-[#8b949e]">
+            <div className="h-10 px-4 border-b border-[var(--border)] bg-[var(--bg-side)]/30 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--text-dim)]">
                 <Code className="w-3 h-3 text-indigo-400" /> 
                 <span className="uppercase tracking-widest text-[#f0f6fc]">{selectedFile.name}</span>
               </div>
@@ -98,7 +98,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
               </div>
             </div>
             <div className="flex-1 overflow-auto flex custom-scrollbar" style={{ fontSize: `${fontSize}px` }}>
-              <div className="w-10 border-r border-[#30363d] bg-[#010409]/40 flex flex-col items-end py-6 pr-3 select-none text-[#30363d] font-mono shrink-0">
+              <div className="w-10 border-r border-[var(--border)] bg-[var(--bg-side)]/40 flex flex-col items-end py-6 pr-3 select-none text-[#30363d] font-mono shrink-0">
                 {selectedFile.content.split('\n').map((_, i) => <span key={i} className="leading-6">{i + 1}</span>)}
               </div>
               <div className="flex-1 py-6 px-6 overflow-visible">
@@ -112,7 +112,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-12 opacity-40">
-            <div className="w-16 h-16 rounded-full bg-[#161b22] flex items-center justify-center mb-6">
+            <div className="w-16 h-16 rounded-full bg-[var(--bg-hover)] flex items-center justify-center mb-6">
               <Code2 className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-bold mb-2">Editor Ready</h3>
@@ -122,8 +122,8 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
       </section>
 
       {/* 3. Workspace Agent Sidebar */}
-      <aside className="w-80 flex flex-col bg-[#010409]/70 shrink-0">
-        <div className="p-4 border-b border-[#30363d] flex items-center justify-between bg-[#010409]">
+      <aside className="w-80 flex flex-col bg-[var(--bg-side)]/70 shrink-0">
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--bg-side)]">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
             <h2 className="text-[10px] font-bold uppercase tracking-wider text-[#f0f6fc]">Workspace AI Agent</h2>
@@ -133,7 +133,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
         
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {logs.length === 0 && (
-            <div className="p-6 border border-dashed border-[#30363d] rounded-xl text-center opacity-50">
+            <div className="p-6 border border-dashed border-[var(--border)] rounded-xl text-center opacity-50">
               <p className="text-[10px] leading-relaxed">
                 Describe complex tasks like:<br/>
                 <span className="text-indigo-400">"Create a login page with Tailwind"</span><br/>
@@ -143,14 +143,14 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
           )}
           {logs.map((log) => (
             <div key={log.id} className={`group animate-in slide-in-from-right-2 duration-300 ${
-              log.role === 'user' ? 'bg-[#161b22] border border-[#30363d] rounded-lg p-3' : 
+              log.role === 'user' ? 'bg-[var(--bg-hover)] border border-[var(--border)] rounded-lg p-3' : 
               log.role === 'agent' ? 'bg-indigo-600/5 border border-indigo-500/10 rounded-lg p-3' :
-              'bg-[#0d1117] border-l-2 border-green-500/30 p-2 text-[#8b949e]'
+              'bg-[var(--bg-main)] border-l-2 border-green-500/30 p-2 text-[var(--text-dim)]'
             }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded ${
-                  log.role === 'user' ? 'bg-[#30363d] text-[#f0f6fc]' : 
-                  log.role === 'agent' ? 'bg-indigo-600 text-white' : 'bg-[#161b22] text-[#484f58]'
+                  log.role === 'user' ? 'bg-[var(--border)] text-[#f0f6fc]' : 
+                  log.role === 'agent' ? 'bg-indigo-600 text-white' : 'bg-[var(--bg-hover)] text-[#484f58]'
                 }`}>
                   {log.role}
                 </span>
@@ -178,13 +178,13 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({ files, logs, isThi
           <div ref={logEndRef} />
         </div>
 
-        <div className="p-4 border-t border-[#30363d] bg-[#010409]">
+        <div className="p-4 border-t border-[var(--border)] bg-[var(--bg-side)]">
           <form onSubmit={handleSubmit} className="relative group">
             <textarea 
               value={agentInput} 
               onChange={(e) => setAgentInput(e.target.value)} 
               placeholder="Workspace task..." 
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg p-3 pr-10 text-[12px] focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none min-h-[90px] transition-all group-focus-within:border-indigo-500/50"
+              className="w-full bg-[var(--bg-main)] border border-[var(--border)] rounded-lg p-3 pr-10 text-[12px] focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none min-h-[90px] transition-all group-focus-within:border-indigo-500/50"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

@@ -10,16 +10,16 @@ interface SettingsProps {
 
 export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
   return (
-    <div className="h-full w-full p-8 overflow-y-auto custom-scrollbar bg-[#0d1117]">
+    <div className="h-full w-full p-8 overflow-y-auto custom-scrollbar bg-[var(--bg-main)]">
       <div className="max-w-3xl mx-auto">
         <header className="mb-10">
           <h2 className="text-2xl font-bold tracking-tight mb-2">Settings</h2>
-          <p className="text-[#8b949e] text-sm">Configure your CodeScript environment.</p>
+          <p className="text-[var(--text-dim)] text-sm">Configure your CodeScript environment.</p>
         </header>
 
         <div className="space-y-8">
-          <section className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-[#30363d] bg-[#1c2128] flex items-center gap-2">
+          <section className="bg-[var(--bg-hover)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-[var(--border)] bg-[var(--bg-side)]/40 flex items-center gap-2">
               <Palette className="w-4 h-4 text-indigo-400" />
               <span className="text-xs font-bold uppercase tracking-wider">Appearance</span>
             </div>
@@ -32,7 +32,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
                 <select 
                   value={settings.theme}
                   onChange={(e) => onUpdate({ ...settings, theme: e.target.value as any })}
-                  className="bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:ring-1 focus:ring-indigo-500 outline-none"
+                  className="bg-[var(--bg-main)] border border-[var(--border)] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:ring-1 focus:ring-indigo-500 outline-none"
                 >
                   <option value="dark">GitHub Dark</option>
                   <option value="oled">Pure OLED</option>
@@ -41,8 +41,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold mb-1">Editor Font Size</div>
-                  <div className="text-xs text-[#484f58]">Adjust the workspace code display</div>
+                  <div className="text-sm font-semibold mb-1">Text Scaling ({settings.fontSize}px)</div>
+                  <div className="text-xs text-[#484f58]">Adjust editor and chat text size</div>
                 </div>
                 <input 
                   type="range" min="10" max="24" step="1"
@@ -54,8 +54,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
             </div>
           </section>
 
-          <section className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-[#30363d] bg-[#1c2128] flex items-center gap-2">
+          <section className="bg-[var(--bg-hover)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-[var(--border)] bg-[var(--bg-side)]/40 flex items-center gap-2">
               <Shield className="w-4 h-4 text-green-400" />
               <span className="text-xs font-bold uppercase tracking-wider">Engine & AI</span>
             </div>
@@ -63,11 +63,16 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold mb-1">AI Model</div>
-                  <div className="text-xs text-[#484f58]">Primary processing model for logic</div>
+                  <div className="text-xs text-[#484f58]">Select the logic engine</div>
                 </div>
-                <div className="text-xs bg-[#0d1117] border border-[#30363d] px-3 py-1.5 rounded-md text-[#8b949e]">
-                  Gemini 3 Pro (Active)
-                </div>
+                <select 
+                  value={settings.modelName}
+                  onChange={(e) => onUpdate({ ...settings, modelName: e.target.value })}
+                  className="bg-[var(--bg-main)] border border-[var(--border)] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:ring-1 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="gemini-3-pro-preview">Gemini 3 Pro (Recommended)</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Fast)</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-between">
