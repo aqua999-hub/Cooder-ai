@@ -1,8 +1,7 @@
 
-import { GoogleGenAI } from "@google/genai";
-import { Message, WorkspaceFile } from "./types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { Message, WorkspaceFile, WorkspaceAction } from "./types";
 
-// Always use a named parameter for apiKey and use process.env.API_KEY directly
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateCodingResponse = async (
@@ -11,36 +10,89 @@ export const generateCodingResponse = async (
 ) => {
   try {
     const contextFiles = workspaceFiles
-      .map(f => `File: ${f.name}\nLanguage: ${f.language}\nContent:\n\`\`\`${f.language}\n${f.content}\n\`\`\``)
+      .map(f => `FILE: ${f.name}\nLANGUAGE: ${f.language}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');
 
-    const systemInstruction = `You are CodeScript AI, a world-class senior software engineer and coding specialist. 
-    You excel at debugging, refactoring, and architecting complex systems.
+    const systemInstruction = `You are CodeScript, a senior full-stack engineer. 
+    You excel at refactoring, debugging, and explaining complex logic.
+    Current Workspace Context:
+    ${contextFiles || 'Workspace is empty.'}
     
-    The user has the following files in their workspace:
-    ${contextFiles}
+    GUIDELINES:
+    1. Provide code snippets using Markdown syntax.
+    2. Suggest best practices and performance optimizations.
+    3. If the user wants to modify files, remind them to use the "Workspace AI" tab for direct file manipulation.`;
 
-    When providing code snippets, always use Markdown blocks with the correct language tag.
-    Be concise, technical, and helpful. If code is requested, prioritize correctness and efficiency.`;
-
-    // Always use ai.models.generateContent to query GenAI with both model and contents
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: messages.map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]
       })),
-      config: {
-        systemInstruction,
-        temperature: 0.2, // Lower temperature for more deterministic coding output
-        topP: 0.95,
+      config: { 
+        systemInstruction, 
+        temperature: 0.7,
+        thinkingConfig: { thinkingBudget: 4000 }
       },
     });
 
-    // Extract text output using the .text property directly
-    return response.text || "I'm sorry, I couldn't generate a response.";
+    return response.text || "I was unable to process your request.";
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Error communicating with the coding engine. Please check your connection and API key.";
+    console.error("Chat Generation Error:", error);
+    return "Error generating response. Please check your network or try a shorter prompt.";
+  }
+};
+
+export const generateWorkspaceAgentResponse = async (
+  prompt: string,
+  workspaceFiles: WorkspaceFile[]
+): Promise<{ explanation: string; actions: WorkspaceAction[] }> => {
+  try {
+    const contextFiles = workspaceFiles
+      .map(f => `NAME: ${f.name}\nCONTENT:\n${f.content}`)
+      .join('\n\n---\n\n');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: `COMMAND: ${prompt}\n\nWORKSPACE:\n${contextFiles || 'Empty workspace.'}`,
+      config: {
+        systemInstruction: `You are the CodeScript Workspace Agent. You have direct file system access.
+        YOUR JOB: Translate user commands into specific file operations (CREATE, UPDATE, DELETE).
+        
+        RULES:
+        1. CREATE: Use for new files.
+        2. UPDATE: Provide the FULL file content for modified files.
+        3. DELETE: Use only if explicitly requested.
+        4. Always explain your rationale in the "explanation" field.
+        5. RESPOND ONLY IN JSON.`,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            explanation: { type: Type.STRING },
+            actions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  type: { type: Type.STRING, enum: ['CREATE', 'UPDATE', 'DELETE'] },
+                  fileName: { type: Type.STRING },
+                  content: { type: Type.STRING },
+                  explanation: { type: Type.STRING }
+                },
+                required: ["type", "fileName", "explanation"]
+              }
+            }
+          },
+          required: ["explanation", "actions"]
+        },
+        thinkingConfig: { thinkingBudget: 8000 }
+      },
+    });
+
+    return JSON.parse(response.text || '{"explanation": "No changes made", "actions": []}');
+  } catch (error) {
+    console.error("Agent Generation Error:", error);
+    throw error;
   }
 };

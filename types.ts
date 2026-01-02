@@ -1,7 +1,7 @@
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
 }
@@ -17,5 +17,28 @@ export interface ChatSession {
   id: string;
   title: string;
   messages: Message[];
-  activeFileId?: string;
+}
+
+export interface WorkspaceAction {
+  type: 'CREATE' | 'UPDATE' | 'DELETE';
+  fileName: string;
+  content?: string;
+  explanation: string;
+}
+
+export interface AgentLogEntry {
+  id: string;
+  msg: string;
+  role: 'user' | 'agent' | 'system';
+  timestamp: number;
+  actions?: WorkspaceAction[];
+}
+
+export type ViewType = 'chat' | 'workspace' | 'dashboard' | 'settings';
+
+export interface AppSettings {
+  modelName: string;
+  theme: 'dark' | 'oled';
+  fontSize: number;
+  autoSave: boolean;
 }
