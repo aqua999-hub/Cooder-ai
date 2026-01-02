@@ -1,16 +1,15 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import JSZip from 'jszip';
-import { supabase } from './lib/supabase.ts';
-import { Auth } from './components/Auth.tsx';
-import { Sidebar } from './components/Sidebar.tsx';
-import { ChatArea } from './components/ChatArea.tsx';
-import { CodeWorkspace } from './components/CodeWorkspace.tsx';
-import { Dashboard } from './components/Dashboard.tsx';
-import { Settings } from './components/Settings.tsx';
-import { Profile } from './components/Profile.tsx';
-import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types.ts';
-import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService.ts';
+import { supabase } from './lib/supabase';
+import { Auth } from './components/Auth';
+import { Sidebar } from './components/Sidebar';
+import { ChatArea } from './components/ChatArea';
+import { CodeWorkspace } from './components/CodeWorkspace';
+import { Dashboard } from './components/Dashboard';
+import { Settings } from './components/Settings';
+import { Profile } from './components/Profile';
+import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types';
+import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService';
 import { PanelLeft, PanelRight, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -133,7 +132,6 @@ const App: React.FC = () => {
 
   return (
     <div className={`flex h-screen w-full bg-[#212121] text-[#ececec] overflow-hidden`}>
-      {/* Sidebar - ChatGPT Style */}
       {showSidebar && (
         <Sidebar 
           sessions={sessions} 
@@ -148,7 +146,6 @@ const App: React.FC = () => {
       )}
 
       <main className="flex flex-1 flex-col min-w-0 relative">
-        {/* Top Control Bar */}
         <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
           <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-[#2f2f2f] rounded-lg text-[#b4b4b4] transition-all">
             <PanelLeft className="w-5 h-5" />
@@ -169,7 +166,6 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Content Area */}
         <div className="flex-1 flex overflow-hidden">
           <div className={`flex-1 flex flex-col transition-all duration-300 ${showWorkspace ? 'mr-[450px]' : ''}`}>
             {activeView === 'chat' && (
@@ -185,7 +181,6 @@ const App: React.FC = () => {
             {activeView === 'profile' && <Profile user={session.user} sessionsCount={sessions.length} filesCount={workspaceFiles.length} />}
           </div>
 
-          {/* Collapsible Workspace Panel */}
           <div className={`fixed top-0 right-0 h-full w-[450px] bg-[#171717] border-l border-[#3d3d3d] transition-transform duration-300 z-40 ${showWorkspace ? 'translate-x-0' : 'translate-x-full'}`}>
             <CodeWorkspace 
               files={workspaceFiles} 
