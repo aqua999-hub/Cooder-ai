@@ -1,4 +1,3 @@
-
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -34,12 +33,11 @@ export interface AgentLogEntry {
   actions?: WorkspaceAction[];
 }
 
-// Fixed: Added 'profile' to the ViewType union to allow rendering the profile component and selection from sidebar
 export type ViewType = 'chat' | 'workspace' | 'dashboard' | 'settings' | 'profile';
 
 export interface AppSettings {
   modelName: string;
-  theme: 'dark' | 'oled';
+  theme: 'dark' | 'oled' | 'light';
   fontSize: number;
   autoSave: boolean;
 }

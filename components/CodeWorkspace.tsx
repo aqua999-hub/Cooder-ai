@@ -16,7 +16,9 @@ import {
   LayoutGrid, 
   FilePlus2, 
   X, 
-  Sparkles 
+  Sparkles,
+  Upload,
+  AlertCircle
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -42,10 +44,11 @@ const LANGUAGE_MAP: Record<string, string> = {
   'sh': 'shell',
   'sql': 'sql',
   'yaml': 'yaml',
-  'yml': 'yaml'
+  'yml': 'yaml',
+  'txt': 'plaintext'
 };
 
-const SUPPORTED_LANGUAGES = Object.values(LANGUAGE_MAP);
+const VALID_EXTENSIONS = Object.keys(LANGUAGE_MAP);
 
 const mapExtensionToLanguage = (ext: string): string => {
   return LANGUAGE_MAP[ext.toLowerCase()] || 'plaintext';
@@ -66,9 +69,9 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFileExt, setNewFileExt] = useState('ts');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const modalInputRef = useRef<HTMLInputElement>(null);
   const monaco = useMonaco();
 
   useEffect(() => {
@@ -87,40 +90,35 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
     }
   }, [selectedFileId, selectedFile]);
 
-  // Multi-Language AI-Powered Autocomplete Engine
+  // Autocomplete Engine
   useEffect(() => {
     if (!monaco) return;
 
-    const providers = SUPPORTED_LANGUAGES.map(langId => {
+    const providers = Object.values(LANGUAGE_MAP).map(langId => {
       return monaco.languages.registerCompletionItemProvider(langId, {
         triggerCharacters: ['.', ' ', '(', '{', ':', '/', '<'],
         provideCompletionItems: async (model, position) => {
           const textUntilPosition = model.getValueInRange({
-            startLineNumber: Math.max(1, position.lineNumber - 50), // Send last 50 lines for context
+            startLineNumber: Math.max(1, position.lineNumber - 50),
             startColumn: 1,
             endLineNumber: position.lineNumber,
             endColumn: position.column,
           });
 
-          // Detect active language from model (Monaco side)
           const currentLang = model.getLanguageId();
-
-          // Only trigger AI if there's enough context
           const lines = textUntilPosition.split('\n');
           const currentLine = lines[lines.length - 1];
+          
           if (currentLine.trim().length < 2 && !currentLine.endsWith('.') && !currentLine.endsWith(':')) {
             return { suggestions: [] };
           }
 
           try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const prompt = `You are an expert AI code autocomplete engine for ${currentLang}.
-            Language: ${currentLang}
-            Context:
-            ${textUntilPosition}
+            const apiKey = process.env.API_KEY;
+            if (!apiKey) return { suggestions: [] };
             
-            Provide exactly 3 short, high-quality code completion suggestions for the next few characters or symbols.
-            Respond ONLY with a JSON array of strings. No markdown, no commentary.`;
+            const ai = new GoogleGenAI({ apiKey });
+            const prompt = `Provide 3 short code completions for ${currentLang}. Context: ${textUntilPosition}. Respond ONLY with JSON array of strings.`;
 
             const response = await ai.models.generateContent({
               model: 'gemini-3-flash-preview',
@@ -129,12 +127,11 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
             });
 
             const aiSuggestions: string[] = JSON.parse(response.text || '[]');
-            
             const suggestions = aiSuggestions.map(s => ({
               label: s,
               kind: monaco.languages.CompletionItemKind.Snippet,
               insertText: s,
-              detail: `AI ${currentLang} suggestion`,
+              detail: `AI Suggestion`,
               range: {
                 startLineNumber: position.lineNumber,
                 endLineNumber: position.lineNumber,
@@ -145,7 +142,6 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
 
             return { suggestions };
           } catch (e) {
-            console.error(`AI Autocomplete Error for ${currentLang}:`, e);
             return { suggestions: [] };
           }
         }
@@ -205,9 +201,22 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
 
   const handleConfirmCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!newFileName.trim() || !newFileExt.trim()) return;
-    const cleanExt = newFileExt.trim().replace(/^\./, '');
-    const fullName = `${newFileName.trim()}.${cleanExt}`;
+    setValidationError(null);
+
+    const cleanName = newFileName.trim();
+    const cleanExt = newFileExt.trim().toLowerCase().replace(/^\./, '');
+
+    if (!cleanName) {
+      setValidationError("Asset name required.");
+      return;
+    }
+
+    if (!VALID_EXTENSIONS.includes(cleanExt)) {
+      setValidationError(`Invalid Extension: .${cleanExt}. Only standard engineering types permitted.`);
+      return;
+    }
+
+    const fullName = `${cleanName}.${cleanExt}`;
     const newFile = await onCreateFile(fullName);
     if (newFile) {
       setSelectedFileId(newFile.id);
@@ -217,14 +226,18 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
     }
   };
 
-  const handleDelete = () => {
-    if (selectedFileId && selectedFile && confirm(`Delete "${selectedFile.name}"?`)) {
-      onDeleteFile(selectedFileId);
-      setSelectedFileId(null);
+  // Fixed deletion trigger
+  const handleRequestDelete = (id: string, name: string) => {
+    if (window.confirm(`Permanently terminate asset "${name}"?`)) {
+      onDeleteFile(id);
+      if (selectedFileId === id) {
+        setSelectedFileId(null);
+      }
     }
   };
 
   const isModified = selectedFile && editContent !== selectedFile.content;
+  const isMobile = window.innerWidth < 768;
 
   return (
     <div className="flex h-full flex-col bg-[#000000] overflow-hidden relative selection:bg-[#10a37f]/30">
@@ -232,140 +245,139 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
 
       {/* New File Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-[32px] sm:rounded-[40px] shadow-2xl overflow-hidden p-6 sm:p-8 animate-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between mb-6 sm:mb-8">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-[32px] shadow-2xl overflow-hidden p-6 animate-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#10a37f]/10 rounded-2xl flex items-center justify-center border border-[#10a37f]/20">
-                  <FilePlus2 className="w-5 h-5 sm:w-6 sm:h-6 text-[#10a37f]" />
+                <div className="w-10 h-10 bg-[#10a37f]/10 rounded-xl flex items-center justify-center border border-[#10a37f]/20">
+                  <FilePlus2 className="w-5 h-5 text-[#10a37f]" />
                 </div>
-                <div>
-                  <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">New Asset</h3>
-                  <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">Workspace</p>
-                </div>
+                <h3 className="text-lg font-black text-white uppercase tracking-tight italic">Initialize Asset</h3>
               </div>
-              <button onClick={() => setIsCreateModalOpen(false)} className="p-2 hover:bg-white/5 rounded-full text-gray-700 transition-colors"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
+              <button onClick={() => { setIsCreateModalOpen(false); setValidationError(null); }} className="p-2 hover:bg-white/5 rounded-full text-gray-700 transition-colors"><X className="w-5 h-5" /></button>
             </div>
-
-            <form onSubmit={handleConfirmCreate} className="space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-3 gap-3 sm:gap-4">
-                <div className="col-span-2 space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Asset Name</label>
-                  <input 
-                    ref={modalInputRef}
-                    type="text" 
-                    placeholder="e.g., App"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 sm:px-6 py-4 sm:py-5 text-sm focus:ring-1 focus:ring-[#10a37f] focus:outline-none text-white transition-all placeholder:text-gray-700 font-medium"
-                  />
+            
+            <form onSubmit={handleConfirmCreate} className="space-y-4">
+              {validationError && (
+                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-center gap-3 text-red-500 text-[10px] font-black uppercase tracking-widest animate-in shake">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {validationError}
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Ext</label>
-                  <input 
-                    type="text" 
-                    placeholder="ts"
-                    value={newFileExt}
-                    onChange={(e) => setNewFileExt(e.target.value)}
-                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 sm:px-6 py-4 sm:py-5 text-sm focus:ring-1 focus:ring-[#10a37f] focus:outline-none text-white transition-all font-mono placeholder:text-gray-700"
-                  />
-                </div>
+              )}
+              <div className="grid grid-cols-3 gap-3">
+                <input 
+                  autoFocus
+                  type="text" 
+                  placeholder="Asset Name"
+                  value={newFileName}
+                  onChange={(e) => { setNewFileName(e.target.value); setValidationError(null); }}
+                  className="col-span-2 bg-white/5 border border-white/5 rounded-xl px-4 py-4 text-sm focus:ring-1 focus:ring-[#10a37f] outline-none text-white font-medium placeholder:text-gray-800"
+                />
+                <input 
+                  type="text" 
+                  placeholder="Ext"
+                  value={newFileExt}
+                  onChange={(e) => { setNewFileExt(e.target.value); setValidationError(null); }}
+                  className="bg-white/5 border border-white/5 rounded-xl px-4 py-4 text-sm focus:ring-1 focus:ring-[#10a37f] outline-none text-white font-mono placeholder:text-gray-800"
+                />
               </div>
-              <button type="submit" className="w-full h-14 sm:h-16 rounded-2xl bg-[#10a37f] hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-[0.2em] transition-all shadow-xl active:scale-[0.97]">Create Asset</button>
+              <button type="submit" className="w-full py-5 rounded-xl bg-[#10a37f] hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95">Commit Asset</button>
             </form>
           </div>
         </div>
       )}
 
       {/* Header Toolbar */}
-      <div className="h-14 px-4 sm:px-6 border-b border-white/5 flex items-center justify-between bg-[#050505] z-[50]">
-        <div className="flex items-center gap-4 sm:gap-6">
+      <div className="h-14 px-4 border-b border-white/5 flex items-center justify-between bg-[#050505] z-[50] shrink-0">
+        <div className="flex items-center gap-4">
           <button 
             onClick={() => setShowFileExplorer(!showFileExplorer)} 
-            className={`p-2 rounded-xl transition-all ${showFileExplorer ? 'text-[#10a37f] bg-[#10a37f]/10' : 'text-gray-600 hover:text-gray-300 hover:bg-white/5'}`}
+            className={`p-2 rounded-lg transition-all ${showFileExplorer ? 'text-[#10a37f] bg-[#10a37f]/10' : 'text-gray-600 hover:text-gray-300 hover:bg-white/5'}`}
           >
             <SidebarIcon className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <FolderOpen className="w-4 h-4 text-[#10a37f]" />
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 hidden sm:inline">Live Workspace</span>
-          </div>
+          {!isMobile && (
+            <div className="flex items-center gap-2">
+              <FolderOpen className="w-4 h-4 text-[#10a37f]" />
+              <span className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-500">Live Workspace</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {isModified && (
+            <button onClick={handleSave} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#10a37f] text-white text-[9px] font-black uppercase tracking-widest shadow-lg">
+              <Save className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Commit</span>
+            </button>
+          )}
           <button 
             onClick={handleDownload} 
-            className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-white/5 text-gray-400 hover:text-white border border-white/10 transition-all text-[9px] sm:text-[10px] font-black uppercase tracking-widest group"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 border border-white/10 text-[9px] font-black uppercase tracking-widest hover:text-white transition-all"
           >
-            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-y-0.5 transition-transform" /> 
-            <span className="hidden xs:inline">Export Project</span>
+            <Download className="w-3.5 h-3.5" /> 
+            <span className="hidden xs:inline">Source Zip</span>
           </button>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Project Tree */}
-        <div className={`bg-[#030303] transition-all duration-300 ease-in-out border-r border-white/5 flex flex-col absolute sm:relative h-full z-[100] sm:z-auto ${showFileExplorer ? 'w-[260px] translate-x-0' : 'w-0 -translate-x-full opacity-0 invisible sm:relative'}`}>
-          <div className="p-4 sm:p-6 flex-1 flex flex-col min-w-[260px]">
+        <div className={`bg-[#030303] transition-all duration-300 ease-in-out border-r border-white/5 flex flex-col absolute sm:relative h-full z-[100] sm:z-auto ${showFileExplorer ? (isMobile ? 'w-full translate-x-0' : 'w-[260px] translate-x-0') : 'w-0 -translate-x-full opacity-0 invisible sm:relative'}`}>
+          <div className="p-4 flex-1 flex flex-col min-w-[260px]">
             <div className="flex items-center justify-between px-2 mb-6">
               <div className="flex items-center gap-2">
-                <LayoutGrid className="w-4 h-4 text-gray-700" />
-                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Explorer</span>
+                <LayoutGrid className="w-3.5 h-3.5 text-gray-700" />
+                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Asset Tree</span>
               </div>
-              <button 
-                onClick={() => setIsCreateModalOpen(true)} 
-                className="w-8 h-8 flex items-center justify-center hover:bg-[#10a37f]/10 hover:text-[#10a37f] text-gray-700 transition-all rounded-xl border border-transparent hover:border-[#10a37f]/20"
-              >
+              <button onClick={() => setIsCreateModalOpen(true)} className="w-7 h-7 flex items-center justify-center hover:bg-[#10a37f]/10 text-gray-700 hover:text-[#10a37f] transition-all rounded-lg border border-transparent hover:border-[#10a37f]/20">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
+            
             <div className="overflow-y-auto flex-1 custom-scrollbar space-y-1">
               {files.map(file => (
-                <button 
-                  key={file.id} 
-                  onClick={() => { setSelectedFileId(file.id); if (window.innerWidth < 768) setShowFileExplorer(false); }}
-                  className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-xs transition-all truncate border ${
-                    selectedFileId === file.id 
-                      ? 'bg-[#10a37f]/10 border-[#10a37f]/30 text-white shadow-lg' 
-                      : 'text-gray-600 border-transparent hover:bg-white/5'
-                  }`}
-                >
-                  <FileCode className={`w-4 h-4 shrink-0 ${selectedFileId === file.id ? 'text-[#10a37f]' : 'text-gray-800'}`} />
-                  <span className="truncate font-semibold tracking-tight">{file.name}</span>
-                </button>
+                <div key={file.id} className="group relative">
+                  <button 
+                    onClick={() => { setSelectedFileId(file.id); if (isMobile) setShowFileExplorer(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-xs transition-all truncate border pr-10 ${
+                      selectedFileId === file.id 
+                        ? 'bg-[#10a37f]/10 border-[#10a37f]/30 text-white shadow-lg' 
+                        : 'text-gray-600 border-transparent hover:bg-white/5'
+                    }`}
+                  >
+                    <FileCode className={`w-3.5 h-3.5 shrink-0 ${selectedFileId === file.id ? 'text-[#10a37f]' : 'text-gray-800'}`} />
+                    <span className="truncate font-bold tracking-tight">{file.name}</span>
+                  </button>
+                  {/* Fixed Delete Trigger with stopPropagation to avoid selection conflicts */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleRequestDelete(file.id, file.name); }}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-gray-800 hover:text-red-500 hover:bg-red-500/10 transition-all ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Monaco Editor Engine */}
         <div className="flex-1 flex flex-col bg-[#000000] relative overflow-hidden">
-          <div className="absolute inset-0 bg-grid-tech opacity-[0.03] pointer-events-none" />
-          
           {selectedFile ? (
             <>
-              <div className="h-12 px-4 sm:px-8 flex items-center justify-between bg-black border-b border-white/5 z-[40]">
-                <div className="flex items-center gap-3 sm:gap-5 overflow-hidden">
-                   <div className="px-2 py-0.5 rounded bg-[#10a37f]/10 text-[#10a37f] text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] border border-[#10a37f]/20 shadow-sm shrink-0">
+              <div className="h-10 px-4 flex items-center justify-between bg-black border-b border-white/5 z-[40] shrink-0">
+                <div className="flex items-center gap-3 overflow-hidden">
+                   <div className="px-1.5 py-0.5 rounded bg-[#10a37f]/10 text-[#10a37f] text-[8px] font-black uppercase border border-[#10a37f]/20 shrink-0">
                      {selectedFile.language}
                    </div>
-                   <div className="flex items-center gap-2 min-w-0">
-                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{selectedFile.name}</span>
-                     {isModified && <div className="w-1.5 h-1.5 rounded-full bg-[#10a37f] animate-pulse shadow-[0_0_8px_#10a37f] shrink-0" />}
-                   </div>
+                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{selectedFile.name}</span>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                  {isModified && (
-                    <button onClick={handleSave} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-xl bg-[#10a37f] hover:bg-emerald-500 text-white transition-all text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95">
-                      <Save className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Save</span>
-                    </button>
-                  )}
-                  <button onClick={() => { navigator.clipboard.writeText(editContent); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className={`flex items-center gap-2 px-2.5 sm:px-4 py-1.5 rounded-xl border transition-all text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${copied ? 'bg-[#10a37f]/20 border-[#10a37f]/40 text-[#10a37f]' : 'bg-white/5 border-white/10 text-gray-600 hover:text-white'}`}>
-                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} <span className="hidden sm:inline">{copied ? 'Done' : 'Copy'}</span>
-                  </button>
-                  <button onClick={handleDelete} className="p-2 rounded-xl border border-white/5 text-gray-800 hover:text-red-500 hover:bg-red-500/10 transition-all"><Trash2 className="w-4 h-4" /></button>
+                <div className="flex items-center gap-1.5">
+                   <button onClick={() => { navigator.clipboard.writeText(editContent); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="p-1.5 hover:bg-white/5 rounded-lg text-gray-600 transition-all">
+                      {copied ? <Check className="w-3.5 h-3.5 text-[#10a37f]" /> : <Copy className="w-3.5 h-3.5" />}
+                   </button>
+                   <button onClick={() => handleRequestDelete(selectedFile.id, selectedFile.name)} className="p-1.5 hover:bg-red-500/10 rounded-lg text-gray-600 hover:text-red-500 transition-all">
+                      <Trash2 className="w-3.5 h-3.5" />
+                   </button>
                 </div>
               </div>
-              
               <div className="flex-1 relative z-[30]">
                 <Editor
                   height="100%"
@@ -373,41 +385,43 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
                   value={editContent}
                   onChange={handleEditorChange}
                   theme="vs-dark"
-                  loading={<div className="flex flex-col items-center justify-center h-full text-gray-600 text-xs font-black uppercase tracking-[0.3em] gap-4"><Sparkles className="w-6 h-6 animate-pulse text-[#10a37f]" /> Initializing Engine...</div>}
+                  loading={<div className="flex h-full items-center justify-center text-gray-700 text-[10px] uppercase font-black tracking-widest animate-pulse"><Sparkles className="w-5 h-5 mr-3 text-[#10a37f]" /> Initializing Kernel...</div>}
                   options={{
-                    fontSize: window.innerWidth < 768 ? fontSize : fontSize + 2,
+                    fontSize: isMobile ? 12 : fontSize,
                     fontFamily: "'Fira Code', monospace",
-                    minimap: { enabled: false },
+                    minimap: { enabled: !isMobile },
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
-                    padding: { top: 20 },
-                    lineNumbers: 'on',
-                    renderLineHighlight: 'all',
+                    padding: { top: 16 },
+                    lineNumbers: isMobile ? 'off' : 'on',
                     cursorBlinking: 'smooth',
-                    cursorSmoothCaretAnimation: 'on',
                     smoothScrolling: true,
                     tabSize: 2,
-                    insertSpaces: true,
                     wordWrap: 'on',
-                    suggestOnTriggerCharacters: true,
-                    quickSuggestions: true,
-                    snippetSuggestions: 'top',
-                    scrollbar: {
-                      vertical: 'hidden',
-                      horizontal: 'hidden'
-                    },
-                    fixedOverflowWidgets: true,
-                    links: true,
-                    contextmenu: true
+                    scrollbar: { vertical: 'auto', horizontal: 'auto' },
+                    contextmenu: !isMobile,
+                    quickSuggestions: true
                   }}
                 />
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center px-8 sm:px-12 opacity-20">
-              <Code className="w-12 h-12 sm:w-16 sm:h-16 mb-4" />
-              <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-[0.4em] mb-3">Idle Environment</h3>
-              <button onClick={() => setIsCreateModalOpen(true)} className="mt-8 px-8 py-4 bg-[#10a37f] text-white rounded-2xl font-bold uppercase tracking-widest text-[10px]">Initialize File</button>
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-[#000000]">
+               <div className="absolute inset-0 bg-grid-tech opacity-10 pointer-events-none" />
+               <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-8 border border-white/5 shadow-2xl relative z-10">
+                 <Code className="w-10 h-10 text-[#10a37f]" />
+               </div>
+               <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-4 relative z-10">Terminal Ready</h2>
+               <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mb-12 relative z-10">Initialize an asset to begin development</p>
+               
+               <div className="flex flex-col sm:flex-row gap-4 relative z-10">
+                  <button 
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="px-8 py-4 bg-[#10a37f] hover:bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    <Plus className="w-4 h-4" /> New File
+                  </button>
+               </div>
             </div>
           )}
         </div>
