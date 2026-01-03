@@ -17,7 +17,8 @@
     "@supabase/supabase-js": "^2.46.1",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "@monaco-editor/react": "^4.6.0"
   },
   "devDependencies": {
     "vite": "^6.0.0",
