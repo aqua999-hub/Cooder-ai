@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { WorkspaceFile, AgentLogEntry } from '../types';
 import { BarChart3, FileCode, Clock, MessageSquare, Zap, Activity, HardDrive } from 'lucide-react';
@@ -25,7 +24,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ files, logs }) => {
       <div className="max-w-5xl mx-auto">
         <header className="mb-10">
           <h2 className="text-2xl font-bold tracking-tight mb-2">Project Overview</h2>
-          <p className="text-[var(--text-dim)] text-sm">Real-time metrics for your CodeScript workspace.</p>
+          <p className="text-[var(--text-dim)] text-sm">Real-time metrics for your Cooder AI workspace.</p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">

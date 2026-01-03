@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from './lib/supabase';
 import { Auth } from './components/Auth';
+import { LandingPage } from './components/LandingPage';
 import { Sidebar } from './components/Sidebar';
+import { ActivityBar } from './components/ActivityBar';
 import { ChatArea } from './components/ChatArea';
 import { CodeWorkspace } from './components/CodeWorkspace';
 import { Dashboard } from './components/Dashboard';
@@ -9,23 +11,25 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types';
 import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService';
-import { PanelLeft, PanelRight, Sparkles } from 'lucide-react';
+import { PanelLeft, Sparkles, MessageSquare, Bot } from 'lucide-react';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
+  const [showLanding, setShowLanding] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ViewType>('chat');
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([]);
   const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  
   const [showSidebar, setShowSidebar] = useState(true);
-  const [showWorkspace, setShowWorkspace] = useState(false);
+  const [showAiPanel, setShowAiPanel] = useState(true);
   
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('cs_settings');
     return saved ? JSON.parse(saved) : {
-      modelName: 'gemini-3-pro-preview',
+      modelName: 'gemini-3-flash-preview',
       theme: 'dark',
       fontSize: 14,
       autoSave: true
@@ -33,111 +37,153 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) setShowLanding(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) setShowLanding(false);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!session) return;
-    const userPrefix = session.user.id.slice(0, 8);
-    const savedSessions = localStorage.getItem(`cs_sessions_${userPrefix}`);
-    const savedFiles = localStorage.getItem(`cs_workspace_${userPrefix}`);
-    const savedLogs = localStorage.getItem(`cs_agent_logs_${userPrefix}`);
-    
-    if (savedSessions) {
-      const parsed = JSON.parse(savedSessions);
-      setSessions(parsed);
-      if (parsed.length > 0) setCurrentSessionId(parsed[0].id);
-    } else {
-      handleNewChat();
-    }
-    if (savedFiles) setWorkspaceFiles(JSON.parse(savedFiles));
-    if (savedLogs) setAgentLogs(JSON.parse(savedLogs));
-  }, [session]);
+    const fetchUserData = async () => {
+      setIsLoading(true);
+      try {
+        const { data: sessionsData } = await supabase
+          .from('sessions')
+          .select('*, messages(*)')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
 
-  useEffect(() => {
-    if (!session) return;
-    const userPrefix = session.user.id.slice(0, 8);
-    localStorage.setItem('cs_settings', JSON.stringify(settings));
-    if (settings.autoSave) {
-      localStorage.setItem(`cs_sessions_${userPrefix}`, JSON.stringify(sessions));
-      localStorage.setItem(`cs_workspace_${userPrefix}`, JSON.stringify(workspaceFiles));
-      localStorage.setItem(`cs_agent_logs_${userPrefix}`, JSON.stringify(agentLogs));
-    }
-  }, [sessions, workspaceFiles, agentLogs, settings, session]);
+        const { data: filesData } = await supabase
+          .from('workspace_files')
+          .select('*')
+          .eq('user_id', session.user.id);
+
+        if (sessionsData) {
+          setSessions(sessionsData.map(s => ({
+            id: s.id,
+            title: s.title,
+            messages: (s.messages || []).sort((a: any, b: any) => a.timestamp - b.timestamp)
+          })));
+          if (sessionsData.length > 0 && !currentSessionId) setCurrentSessionId(sessionsData[0].id);
+        }
+        if (filesData) setWorkspaceFiles(filesData);
+      } finally { setIsLoading(false); }
+    };
+    fetchUserData();
+  }, [session]);
 
   const currentSession = useMemo(() => sessions.find(s => s.id === currentSessionId) || null, [sessions, currentSessionId]);
 
   const handleSendMessage = useCallback(async (content: string) => {
-    if (!currentSessionId || !content.trim()) return;
+    if (!currentSessionId || !content.trim() || !session) return;
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content, timestamp: Date.now() };
     
-    setSessions(prev => prev.map(s => s.id === currentSessionId ? { 
-      ...s, 
-      messages: [...s.messages, userMsg],
-      title: s.messages.length === 0 ? content.slice(0, 30) : s.title
-    } : s));
+    setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...s.messages, userMsg] } : s));
+    await supabase.from('messages').insert({ id: userMsg.id, session_id: currentSessionId, role: 'user', content: userMsg.content, timestamp: userMsg.timestamp });
 
     setIsLoading(true);
     try {
       const response = await generateCodingResponse([...(currentSession?.messages || []), userMsg], workspaceFiles, settings.modelName);
       const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: response, timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
-    } catch (err) {
-      console.error(err);
+      await supabase.from('messages').insert({ id: assistantMsg.id, session_id: currentSessionId, role: 'assistant', content: assistantMsg.content, timestamp: assistantMsg.timestamp });
     } finally { setIsLoading(false); }
-  }, [currentSessionId, currentSession, workspaceFiles, settings.modelName]);
+  }, [currentSessionId, currentSession, workspaceFiles, settings.modelName, session]);
 
-  const handleNewChat = () => {
-    const newSession: ChatSession = { id: crypto.randomUUID(), title: 'New Coding Chat', messages: [] };
-    setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newSession.id);
-    setActiveView('chat');
-  };
+  const applyActions = async (actions: WorkspaceAction[]) => {
+    if (!session) return;
+    
+    for (const action of actions) {
+      if (action.type === 'CREATE' || action.type === 'UPDATE') {
+        const filePayload = {
+          user_id: session.user.id,
+          name: action.fileName,
+          content: action.content || '',
+          language: action.fileName.split('.').pop() || 'txt'
+        };
+        
+        // Use upsert to handle existing files by user_id and name
+        const { data, error } = await supabase
+          .from('workspace_files')
+          .upsert(filePayload, { onConflict: 'user_id, name' })
+          .select();
 
-  const applyWorkspaceActions = useCallback((actions: WorkspaceAction[]) => {
-    setWorkspaceFiles(prev => {
-      let next = [...prev];
-      actions.forEach(action => {
-        const idx = next.findIndex(f => f.name === action.fileName);
-        if (action.type === 'CREATE' || action.type === 'UPDATE') {
-          if (idx !== -1) {
-            next[idx] = { ...next[idx], content: action.content || '' };
-          } else {
-            next.push({ id: crypto.randomUUID(), name: action.fileName, content: action.content || '', language: action.fileName.split('.').pop() || 'txt' });
-          }
-        } else if (action.type === 'DELETE' && idx !== -1) {
-          next.splice(idx, 1);
+        if (error) {
+          console.error("Sync Error:", error);
+          continue;
         }
-      });
-      return next;
-    });
-  }, []);
+
+        setWorkspaceFiles(prev => {
+          const idx = prev.findIndex(f => f.name === action.fileName);
+          if (idx !== -1) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], content: action.content || '' };
+            return next;
+          }
+          return [...prev, data[0]];
+        });
+      } else if (action.type === 'DELETE') {
+        await supabase.from('workspace_files').delete().eq('user_id', session.user.id).eq('name', action.fileName);
+        setWorkspaceFiles(prev => prev.filter(f => f.name !== action.fileName));
+      }
+    }
+  };
 
   const handleWorkspaceAgentSubmit = async (prompt: string) => {
     if (!prompt.trim()) return;
     setIsLoading(true);
     try {
       const result = await generateWorkspaceAgentResponse(prompt, workspaceFiles, settings.modelName);
-      applyWorkspaceActions(result.actions);
-      setAgentLogs(prev => [...prev, { id: crypto.randomUUID(), msg: result.explanation, role: 'agent', timestamp: Date.now(), actions: result.actions }]);
+      await applyActions(result.actions);
+      
+      // Update logs for the dashboard
+      const logEntry: AgentLogEntry = { 
+        id: crypto.randomUUID(), 
+        msg: result.explanation, 
+        role: 'agent', 
+        timestamp: Date.now(), 
+        actions: result.actions 
+      };
+      setAgentLogs(prev => [...prev, logEntry]);
+      
+      // Also add the agent's explanation to the current chat session for consistency
+      if (currentSessionId) {
+        const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: `**Agent Report:** ${result.explanation}`, timestamp: Date.now() };
+        setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
+        await supabase.from('messages').insert({ id: assistantMsg.id, session_id: currentSessionId, role: 'assistant', content: assistantMsg.content, timestamp: assistantMsg.timestamp });
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Agent Critical Failure:", err);
     } finally { setIsLoading(false); }
   };
 
-  if (!session) return <Auth />;
+  if (showLanding && !session) return <LandingPage onStart={() => setShowLanding(false)} />;
+  if (!session) return <Auth onBack={() => setShowLanding(true)} />;
 
   return (
-    <div className={`flex h-screen w-full bg-[#212121] text-[#ececec] overflow-hidden`}>
-      {showSidebar && (
+    <div className={`flex h-screen w-full bg-[#000000] text-[#ececec] overflow-hidden`}>
+      <ActivityBar activeView={activeView} onSetView={setActiveView} />
+
+      {showSidebar && activeView === 'chat' && (
         <Sidebar 
           sessions={sessions} 
           currentSessionId={currentSessionId} 
           onSelectSession={(id) => { setCurrentSessionId(id); setActiveView('chat'); }} 
-          onNewChat={handleNewChat} 
-          onDeleteSession={(id) => setSessions(prev => prev.filter(s => s.id !== id))}
+          onNewChat={async () => {
+            const id = crypto.randomUUID();
+            await supabase.from('sessions').insert({ id, user_id: session.user.id, title: 'New Thread' });
+            setSessions(prev => [{ id, title: 'New Thread', messages: [] }, ...prev]);
+            setCurrentSessionId(id);
+          }} 
+          onDeleteSession={(id) => {
+            supabase.from('sessions').delete().eq('id', id).then(() => setSessions(prev => prev.filter(s => s.id !== id)));
+          }} 
           onSetView={setActiveView}
           activeView={activeView}
           userEmail={session.user.email}
@@ -145,49 +191,67 @@ const App: React.FC = () => {
       )}
 
       <main className="flex flex-1 flex-col min-w-0 relative">
-        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
-          <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-[#2f2f2f] rounded-lg text-[#b4b4b4] transition-all">
-            <PanelLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#2f2f2f] border border-[#3d3d3d] rounded-xl shadow-lg">
-            <Sparkles className="w-4 h-4 text-[#10a37f]" />
-            <span className="text-xs font-bold">CodeScript 2.0</span>
+        <header className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-[#050505] shrink-0 z-[50]">
+          <div className="flex items-center gap-4">
+            {activeView === 'chat' && (
+              <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-white/5 rounded-xl text-gray-500 transition-colors">
+                <PanelLeft className="w-4 h-4" />
+              </button>
+            )}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="absolute inset-0 bg-[#10a37f] blur-md opacity-30" />
+                <Sparkles className="w-4 h-4 text-[#10a37f] relative" />
+              </div>
+              <span className="text-[10px] font-black tracking-[0.4em] uppercase italic text-gray-400">Cooder Engine <span className="text-[#10a37f]">PRO</span></span>
+            </div>
           </div>
-        </div>
-
-        <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-          <button 
-            onClick={() => setShowWorkspace(!showWorkspace)} 
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#3d3d3d] shadow-lg transition-all ${showWorkspace ? 'bg-[#10a37f] text-white' : 'bg-[#2f2f2f] text-[#b4b4b4] hover:text-white'}`}
-          >
-            <PanelRight className="w-4 h-4" />
-            <span className="text-xs font-bold">{showWorkspace ? 'Hide Workspace' : 'Open Workspace'}</span>
-          </button>
-        </div>
+          
+          <div className="flex items-center gap-3">
+            {activeView === 'workspace' && (
+              <button 
+                onClick={() => setShowAiPanel(!showAiPanel)} 
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${showAiPanel ? 'bg-[#10a37f]/10 text-[#10a37f] border-[#10a37f]/30 shadow-lg' : 'text-gray-600 border-white/5 hover:bg-white/5'}`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" /> {showAiPanel ? 'Hide Companion' : 'Show Companion'}
+              </button>
+            )}
+            <div className="w-[1px] h-4 bg-white/10 mx-2" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-[#10a37f] flex items-center justify-center text-[10px] font-black text-white shadow-lg">
+               {session.user.email[0].toUpperCase()}
+            </div>
+          </div>
+        </header>
 
         <div className="flex-1 flex overflow-hidden">
-          <div className={`flex-1 flex flex-col transition-all duration-300 ${showWorkspace ? 'mr-[450px]' : ''}`}>
-            {activeView === 'chat' && (
-              <ChatArea 
-                messages={currentSession?.messages || []} 
-                onSendMessage={handleSendMessage} 
-                isLoading={isLoading} 
-                fontSize={settings.fontSize} 
-              />
-            )}
-            {activeView === 'dashboard' && <Dashboard files={workspaceFiles} logs={agentLogs} />}
-            {activeView === 'settings' && <Settings settings={settings} onUpdate={setSettings} />}
-            {activeView === 'profile' && <Profile user={session.user} sessionsCount={sessions.length} filesCount={workspaceFiles.length} />}
-          </div>
+          <div className="flex-1 flex min-w-0 relative overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 relative">
+              {activeView === 'chat' && (
+                <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} />
+              )}
+              {activeView === 'workspace' && (
+                 <CodeWorkspace files={workspaceFiles} fontSize={settings.fontSize - 2} isThinking={isLoading} onAgentSubmit={handleWorkspaceAgentSubmit} onImportFiles={(nf) => applyActions(nf.map(f => ({ type: 'CREATE', fileName: f.name, content: f.content, explanation: 'Imported' })))} onClose={() => setActiveView('chat')} />
+              )}
+              {activeView === 'dashboard' && <Dashboard files={workspaceFiles} logs={agentLogs} />}
+              {activeView === 'settings' && <Settings settings={settings} onUpdate={setSettings} />}
+              {activeView === 'profile' && <Profile user={session.user} sessionsCount={sessions.length} filesCount={workspaceFiles.length} />}
+            </div>
 
-          <div className={`fixed top-0 right-0 h-full w-[450px] bg-[#171717] border-l border-[#3d3d3d] transition-transform duration-300 z-40 ${showWorkspace ? 'translate-x-0' : 'translate-x-full'}`}>
-            <CodeWorkspace 
-              files={workspaceFiles} 
-              fontSize={settings.fontSize - 2} 
-              isThinking={isLoading} 
-              onAgentSubmit={handleWorkspaceAgentSubmit} 
-              onClose={() => setShowWorkspace(false)}
-            />
+            {/* AI Companion Sidebar (Fly-out) */}
+            {activeView === 'workspace' && showAiPanel && (
+              <div className="w-[320px] flex flex-col bg-[#050505]/95 backdrop-blur-3xl shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-500 shadow-2xl z-40">
+                <div className="h-10 px-5 flex items-center justify-between border-b border-white/5 text-[9px] font-black uppercase text-gray-500 tracking-widest bg-black/40">
+                  <div className="flex items-center gap-3">
+                    <Bot className="w-3.5 h-3.5 text-[#10a37f]" /> Neural Stream
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                    Live
+                  </div>
+                </div>
+                <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} isCompact={true} />
+              </div>
+            )}
           </div>
         </div>
       </main>

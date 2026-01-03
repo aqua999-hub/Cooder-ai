@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AppSettings } from '../types';
 import { Settings as SettingsIcon, Monitor, Smartphone, Palette, Shield, Info } from 'lucide-react';
@@ -14,7 +13,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
       <div className="max-w-3xl mx-auto">
         <header className="mb-10">
           <h2 className="text-2xl font-bold tracking-tight mb-2">Settings</h2>
-          <p className="text-[var(--text-dim)] text-sm">Configure your CodeScript environment.</p>
+          <p className="text-[var(--text-dim)] text-sm">Configure your Cooder AI environment.</p>
         </header>
 
         <div className="space-y-8">
@@ -70,8 +69,8 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
                   onChange={(e) => onUpdate({ ...settings, modelName: e.target.value })}
                   className="bg-[var(--bg-main)] border border-[var(--border)] rounded-md px-3 py-1.5 text-xs text-[#e6edf3] focus:ring-1 focus:ring-indigo-500 outline-none"
                 >
-                  <option value="gemini-3-pro-preview">Gemini 3 Pro (Recommended)</option>
-                  <option value="gemini-3-flash-preview">Gemini 3 Flash (Fast)</option>
+                  <option value="gemini-3-pro-preview">Pro Intelligence</option>
+                  <option value="gemini-3-flash-preview">Flash Intelligence (Fast)</option>
                 </select>
               </div>
 
@@ -92,7 +91,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdate }) => {
 
           <footer className="pt-6 text-center">
              <div className="flex items-center justify-center gap-2 text-[#484f58] text-[10px] uppercase font-bold tracking-widest">
-               <Info className="w-3 h-3" /> CodeScript v2.4.0 • Enterprise Edition
+               <span className="opacity-50">Cooder AI v2.5.0 • Enterprise Edition</span>
              </div>
           </footer>
         </div>

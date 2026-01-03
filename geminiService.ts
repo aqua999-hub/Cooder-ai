@@ -1,18 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Message, WorkspaceFile, WorkspaceAction } from "./types";
 
+const DEFAULT_MODEL = 'gemini-3-flash-preview'; // Switched to Flash for superior speed
+
 export const generateCodingResponse = async (
   messages: Message[],
   workspaceFiles: WorkspaceFile[],
-  modelName: string = 'gemini-3-pro-preview'
+  modelName: string = DEFAULT_MODEL
 ) => {
   try {
-    // Safely access the key injected by Vite
     const apiKey = process.env.API_KEY;
-    
-    if (!apiKey) {
-      return "Critical: API Key not found in Environment Variables. Please set 'API_KEY' in your deployment settings.";
-    }
+    if (!apiKey) return "API Key missing.";
 
     const ai = new GoogleGenAI({ apiKey });
     
@@ -20,11 +18,14 @@ export const generateCodingResponse = async (
       .map(f => `FILE: ${f.name}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');
 
-    const systemInstruction = `You are CodeScript, a specialized AI coding assistant. 
+    const systemInstruction = `You are Cooder AI, a high-velocity senior engineer. 
     Current Workspace Context:
-    ${contextFiles || 'The workspace is currently empty.'}
+    ${contextFiles || 'The workspace is empty.'}
     
-    Focus on providing production-ready code. Always use Markdown for code blocks.`;
+    Response requirements:
+    1. Be extremely concise.
+    2. Provide full, copy-pasteable code blocks.
+    3. If asked to refactor, suggest specific changes.`;
 
     const response = await ai.models.generateContent({
       model: modelName,
@@ -34,21 +35,21 @@ export const generateCodingResponse = async (
       })),
       config: { 
         systemInstruction, 
-        temperature: 0.1
+        temperature: 0.2, // Lower temperature for faster, more stable code
       },
     });
 
-    return response.text || "I was unable to generate a response. Please try rephrasing.";
+    return response.text || "No response generated.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return `Connection Error: ${error instanceof Error ? error.message : 'Unknown error'}. Check your API quota and key configuration.`;
+    return `Error: ${error instanceof Error ? error.message : 'Unknown connection failure'}`;
   }
 };
 
 export const generateWorkspaceAgentResponse = async (
   prompt: string,
   workspaceFiles: WorkspaceFile[],
-  modelName: string = 'gemini-3-pro-preview'
+  modelName: string = DEFAULT_MODEL
 ): Promise<{ explanation: string; actions: WorkspaceAction[] }> => {
   try {
     const apiKey = process.env.API_KEY;
@@ -62,9 +63,11 @@ export const generateWorkspaceAgentResponse = async (
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `COMMAND: ${prompt}\n\nCURRENT WORKSPACE FILES:\n${contextFiles}`,
+      contents: `COMMAND: ${prompt}\n\nCURRENT FILES:\n${contextFiles}`,
       config: {
-        systemInstruction: `You are the CodeScript Project Agent. Your job is to translate user commands into file operations (CREATE, UPDATE, DELETE). Always respond with strictly valid JSON.`,
+        systemInstruction: `You are the Workspace Architect. You modify code files.
+        You must return JSON representing file actions (CREATE, UPDATE, DELETE).
+        Be precise. For UPDATE, return the ENTIRE new content of the file.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -77,7 +80,7 @@ export const generateWorkspaceAgentResponse = async (
                 properties: {
                   type: { type: Type.STRING, enum: ['CREATE', 'UPDATE', 'DELETE'] },
                   fileName: { type: Type.STRING },
-                  content: { type: Type.STRING },
+                  content: { type: Type.STRING, description: "Full new content of the file" },
                   explanation: { type: Type.STRING }
                 },
                 required: ["type", "fileName", "explanation"]
