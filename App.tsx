@@ -11,7 +11,7 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types';
 import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService';
-import { PanelLeft, Sparkles, MessageSquare, Bot } from 'lucide-react';
+import { PanelLeft, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -24,7 +24,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   
   const [showSidebar, setShowSidebar] = useState(true);
-  const [showAiPanel, setShowAiPanel] = useState(true);
   
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('cs_settings');
@@ -108,7 +107,6 @@ const App: React.FC = () => {
           language: action.fileName.split('.').pop() || 'txt'
         };
         
-        // Use upsert to handle existing files by user_id and name
         const { data, error } = await supabase
           .from('workspace_files')
           .upsert(filePayload, { onConflict: 'user_id, name' })
@@ -142,7 +140,6 @@ const App: React.FC = () => {
       const result = await generateWorkspaceAgentResponse(prompt, workspaceFiles, settings.modelName);
       await applyActions(result.actions);
       
-      // Update logs for the dashboard
       const logEntry: AgentLogEntry = { 
         id: crypto.randomUUID(), 
         msg: result.explanation, 
@@ -152,7 +149,6 @@ const App: React.FC = () => {
       };
       setAgentLogs(prev => [...prev, logEntry]);
       
-      // Also add the agent's explanation to the current chat session for consistency
       if (currentSessionId) {
         const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: `**Agent Report:** ${result.explanation}`, timestamp: Date.now() };
         setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
@@ -208,16 +204,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            {activeView === 'workspace' && (
-              <button 
-                onClick={() => setShowAiPanel(!showAiPanel)} 
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${showAiPanel ? 'bg-[#10a37f]/10 text-[#10a37f] border-[#10a37f]/30 shadow-lg' : 'text-gray-600 border-white/5 hover:bg-white/5'}`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" /> {showAiPanel ? 'Hide Companion' : 'Show Companion'}
-              </button>
-            )}
-            <div className="w-[1px] h-4 bg-white/10 mx-2" />
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-[#10a37f] flex items-center justify-center text-[10px] font-black text-white shadow-lg">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-[#10a37f] flex items-center justify-center text-[10px] font-black text-white shadow-lg border border-white/10">
                {session.user.email[0].toUpperCase()}
             </div>
           </div>
@@ -236,22 +223,6 @@ const App: React.FC = () => {
               {activeView === 'settings' && <Settings settings={settings} onUpdate={setSettings} />}
               {activeView === 'profile' && <Profile user={session.user} sessionsCount={sessions.length} filesCount={workspaceFiles.length} />}
             </div>
-
-            {/* AI Companion Sidebar (Fly-out) */}
-            {activeView === 'workspace' && showAiPanel && (
-              <div className="w-[320px] flex flex-col bg-[#050505]/95 backdrop-blur-3xl shrink-0 border-l border-white/5 animate-in slide-in-from-right duration-500 shadow-2xl z-40">
-                <div className="h-10 px-5 flex items-center justify-between border-b border-white/5 text-[9px] font-black uppercase text-gray-500 tracking-widest bg-black/40">
-                  <div className="flex items-center gap-3">
-                    <Bot className="w-3.5 h-3.5 text-[#10a37f]" /> Neural Stream
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                    Live
-                  </div>
-                </div>
-                <ChatArea messages={currentSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} isCompact={true} />
-              </div>
-            )}
           </div>
         </div>
       </main>
