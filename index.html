@@ -71,13 +71,6 @@
     ::-webkit-scrollbar-thumb { background: #262626; border-radius: 100px; border: 2px solid transparent; background-clip: padding-box; }
     ::-webkit-scrollbar-thumb:hover { background: #404040; background-clip: padding-box; }
     
-    /* Animations */
-    @keyframes subtle-glow {
-      0%, 100% { box-shadow: 0 0 20px rgba(16, 163, 127, 0.1); }
-      50% { box-shadow: 0 0 40px rgba(16, 163, 127, 0.2); }
-    }
-    .animate-subtle-glow { animation: subtle-glow 4s ease-in-out infinite; }
-
     .glass {
       background: rgba(255, 255, 255, 0.03);
       backdrop-filter: blur(12px);
@@ -85,11 +78,8 @@
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    /* Prose/Markdown Styles */
     .prose code { color: #10a37f !important; background: rgba(16, 163, 127, 0.1) !important; padding: 0.2em 0.4em !important; border-radius: 6px !important; font-size: 0.85em !important; font-weight: 500 !important; }
     .prose pre { background: #080808 !important; border: 1px solid #1f1f1f !important; border-radius: 12px !important; margin: 1.5em 0 !important; }
-    .prose a { color: #10a37f !important; text-decoration: none !important; border-bottom: 1px solid rgba(16, 163, 127, 0.3) !important; transition: all 0.2s !important; }
-    .prose a:hover { border-bottom-color: #10a37f !important; }
   </style>
 
   <script type="importmap">
@@ -103,9 +93,10 @@
     "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
     "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
+    "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@^4.6.0",
+    "jszip": "https://esm.sh/jszip@^3.10.1",
     "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "jszip": "https://esm.sh/jszip@^3.10.1"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>

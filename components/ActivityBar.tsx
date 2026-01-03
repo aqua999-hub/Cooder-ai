@@ -1,7 +1,7 @@
 import React from 'react';
 import { ViewType } from '../types';
 import { supabase } from '../lib/supabase';
-import { MessageSquare, BarChart3, Settings as SettingsIcon, Code2, UserCircle, LogOut, Terminal as TermIcon, Sparkles, FolderOpen } from 'lucide-react';
+import { MessageSquare, BarChart3, Settings as SettingsIcon, Code2, UserCircle, LogOut, FolderOpen } from 'lucide-react';
 
 interface ActivityBarProps {
   activeView: ViewType;
@@ -10,28 +10,27 @@ interface ActivityBarProps {
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({ activeView, onSetView }) => {
   const items = [
-    { id: 'chat', icon: MessageSquare, label: 'Chat Streams' },
-    { id: 'workspace', icon: FolderOpen, label: 'Engineering Workspace' },
-    { id: 'dashboard', icon: BarChart3, label: 'Analytics' },
-    { id: 'settings', icon: SettingsIcon, label: 'Preferences' },
-    { id: 'profile', icon: UserCircle, label: 'Developer Account' },
+    { id: 'chat', icon: MessageSquare, label: 'Chat' },
+    { id: 'workspace', icon: FolderOpen, label: 'Code' },
+    { id: 'dashboard', icon: BarChart3, label: 'Stats' },
+    { id: 'settings', icon: SettingsIcon, label: 'Settings' },
+    { id: 'profile', icon: UserCircle, label: 'Profile' },
   ];
 
   const handleLogout = async () => {
-    if (confirm('Terminate session and sign out?')) {
+    if (confirm('Are you sure you want to sign out?')) {
       await supabase.signOut();
     }
   };
 
   return (
-    <div className="w-[60px] bg-[#050505] border-r border-white/5 flex flex-col items-center py-6 gap-3 shrink-0 z-[60] shadow-2xl relative">
-      <div className="absolute inset-y-0 right-0 w-[1px] bg-gradient-to-b from-transparent via-white/5 to-transparent" />
-      
-      <div className="w-11 h-11 bg-[#10a37f] rounded-2xl flex items-center justify-center text-white font-bold mb-8 shadow-[0_0_30px_rgba(16,163,127,0.2)] cursor-pointer hover:rotate-6 hover:scale-105 transition-all duration-500 group">
-        <Code2 className="w-6 h-6 group-hover:animate-pulse" />
+    <div className="w-full md:w-[60px] bg-[#050505] border-t md:border-t-0 md:border-r border-white/5 flex md:flex-col items-center justify-around md:justify-start py-2 md:py-6 md:gap-3 shrink-0 z-[60] shadow-2xl relative order-last md:order-first">
+      {/* Brand Icon - Hidden on Mobile */}
+      <div className="hidden md:flex w-11 h-11 bg-[#10a37f] rounded-2xl items-center justify-center text-white mb-8 shadow-lg group cursor-pointer" onClick={() => onSetView('chat')}>
+        <Code2 className="w-6 h-6" />
       </div>
       
-      <div className="flex-1 flex flex-col items-center gap-4 w-full px-2">
+      <div className="flex md:flex-col items-center justify-around md:gap-4 w-full px-2">
         {items.map(item => (
           <button
             key={item.id}
@@ -39,25 +38,28 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeView, onSetView 
             title={item.label}
             className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all relative group ${
               activeView === item.id 
-                ? 'text-[#10a37f] bg-[#10a37f]/10 shadow-inner' 
+                ? 'text-[#10a37f] bg-[#10a37f]/10' 
                 : 'text-gray-600 hover:text-gray-300 hover:bg-white/5'
             }`}
           >
-            <item.icon className={`w-5 h-5 transition-all duration-300 ${activeView === item.id ? 'scale-110 rotate-0' : 'group-hover:scale-110 group-hover:-rotate-3'}`} />
+            <item.icon className="w-5 h-5" />
             {activeView === item.id && (
-              <div className="absolute right-0 top-3 bottom-3 w-[3px] bg-[#10a37f] rounded-l-full shadow-[0_0_15px_#10a37f]" />
+              <div className="absolute right-0 top-3 bottom-3 w-[3px] bg-[#10a37f] rounded-l-full hidden md:block" />
+            )}
+            {activeView === item.id && (
+              <div className="absolute bottom-0 left-3 right-3 h-[2px] bg-[#10a37f] rounded-t-full block md:hidden" />
             )}
           </button>
         ))}
       </div>
 
-      <div className="flex flex-col gap-4 pb-4">
+      <div className="hidden md:flex flex-col gap-4 pb-4">
         <button
           onClick={handleLogout}
           title="Sign Out"
-          className="w-11 h-11 flex items-center justify-center rounded-2xl text-gray-700 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300 group"
+          className="w-11 h-11 flex items-center justify-center rounded-2xl text-gray-700 hover:text-red-400 hover:bg-red-400/5 transition-all"
         >
-          <LogOut className="w-5 h-5 group-hover:scale-110 group-hover:-translate-x-0.5" />
+          <LogOut className="w-5 h-5" />
         </button>
       </div>
     </div>
