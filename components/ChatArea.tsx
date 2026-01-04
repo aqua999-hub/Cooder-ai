@@ -55,8 +55,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, isL
               <div className="bg-[#10a37f]/10 rounded-2xl flex items-center justify-center mb-6 border border-[#10a37f]/20 shadow-xl w-16 h-16">
                 <Sparkles className="w-8 h-8 text-[#10a37f]" />
               </div>
-              <h2 className="text-2xl font-black mb-2 tracking-tighter uppercase italic">Engineering Terminal</h2>
-              <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest max-w-xs">Awaiting input command...</p>
+              <h2 className="text-2xl font-black mb-2 tracking-tighter uppercase italic">Hi! I'm Cooder</h2>
+              <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest max-w-xs">Ask me anything about code!</p>
             </div>
           ) : (
             <div className={`space-y-10 pb-40 pt-4`}>
@@ -70,7 +70,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, isL
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
                        <span className="text-[9px] font-black uppercase text-gray-500 tracking-widest">
-                         {m.role === 'assistant' ? 'Engine' : 'User'}
+                         {m.role === 'assistant' ? 'Cooder' : 'You'}
                        </span>
                        <button onClick={() => copyToClipboard(m.content, m.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:text-[#10a37f] text-gray-400 transition-all">
                           {copiedId === m.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
@@ -107,7 +107,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, isL
             ref={textareaRef} value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); handleSubmit(e); } }}
-            placeholder="Type your command..."
+            placeholder="Type a message..."
             className="w-full bg-transparent border-none rounded-2xl pl-4 pr-12 py-4 focus:outline-none focus:ring-0 resize-none text-[13px] text-[var(--text-main)]"
             rows={1}
           />

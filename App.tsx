@@ -11,14 +11,13 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types';
 import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService';
-import { PanelLeft, Sparkles, Bot, PanelRight, MessageSquare, Code as CodeIcon, User, Settings as SettingsIcon, BarChart3, FolderOpen, Plus, Smartphone } from 'lucide-react';
+import { PanelLeft, Sparkles, PanelRight, MessageSquare, Code as CodeIcon, User, BarChart3, FolderOpen, Smartphone } from 'lucide-react';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [showLanding, setShowLanding] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   
-  // Strict separation of Chat and Workspace Session IDs
   const [currentChatSessionId, setCurrentChatSessionId] = useState<string | null>(null);
   const [currentWorkspaceSessionId, setCurrentWorkspaceSessionId] = useState<string | null>(null);
   
@@ -42,17 +41,13 @@ const App: React.FC = () => {
     };
   });
 
-  // PC users won't see mobile UI anymore. Breakpoint set to strictly 768px.
   useEffect(() => {
     const handleLayout = () => {
       const width = window.innerWidth;
-      const mobileView = width < 768;
-      setIsMobile(mobileView);
-      if (mobileView) {
-        setShowSidebar(false);
-      } else if (width >= 1024) {
-        setShowSidebar(true);
-      }
+      const isNarrow = width < 768;
+      setIsMobile(isNarrow);
+      if (isNarrow) setShowSidebar(false);
+      else if (width >= 1024) setShowSidebar(true);
     };
     handleLayout();
     window.addEventListener('resize', handleLayout);
@@ -77,7 +72,6 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Initialize distinct sessions for Chat and Workspace
   useEffect(() => {
     if (!session) return;
     const fetchUserData = async () => {
@@ -102,33 +96,29 @@ const App: React.FC = () => {
           }));
           setSessions(loadedSessions);
           
-          let chatSess = loadedSessions.find(s => s.title !== 'Workspace Agent');
-          let wsSess = loadedSessions.find(s => s.title === 'Workspace Agent');
+          let chatSess = loadedSessions.find(s => s.title !== 'Workspace Buddy');
+          let wsSess = loadedSessions.find(s => s.title === 'Workspace Buddy');
 
-          // If we don't have distinct sessions, create them now to fix the "sync" bug
           if (!chatSess || !wsSess || chatSess.id === wsSess.id) {
             const chatID = chatSess?.id || crypto.randomUUID();
-            const wsID = crypto.randomUUID(); // Always force a new ID for WS if it's synced
+            const wsID = crypto.randomUUID();
             
             const inserts = [];
             if (!chatSess) inserts.push({ id: chatID, user_id: session.user.id, title: 'Main Chat' });
-            inserts.push({ id: wsID, user_id: session.user.id, title: 'Workspace Agent' });
+            inserts.push({ id: wsID, user_id: session.user.id, title: 'Workspace Buddy' });
             
             await supabase.from('sessions').insert(inserts);
             
-            const { data: fresh } = await supabase.from('sessions').select('*, messages(*)').eq('user_id', session.user.id);
-            if (fresh) {
-              const final = fresh.map(s => ({ id: s.id, title: s.title, messages: [] }));
-              setSessions(final);
-              setCurrentChatSessionId(chatID);
-              setCurrentWorkspaceSessionId(wsID);
-            }
+            setCurrentChatSessionId(chatID);
+            setCurrentWorkspaceSessionId(wsID);
           } else {
             setCurrentChatSessionId(chatSess.id);
             setCurrentWorkspaceSessionId(wsSess.id);
           }
         }
         if (filesData) setWorkspaceFiles(filesData);
+      } catch (err) {
+        console.error("Setup Error:", err);
       } finally { setIsLoading(false); }
     };
     fetchUserData();
@@ -185,12 +175,13 @@ const App: React.FC = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!session) return;
-    setWorkspaceFiles(prev => prev.filter(f => f.id !== fileId)); // Optimistic UI
+    setWorkspaceFiles(prev => prev.filter(f => f.id !== fileId));
     await supabase.from('workspace_files').delete().eq('id', fileId);
   };
 
   const handleSendMessage = useCallback(async (content: string) => {
-    const targetSessionId = activeView === 'workspace' ? currentWorkspaceSessionId : currentChatSessionId;
+    const isWorkspace = activeView === 'workspace';
+    const targetSessionId = isWorkspace ? currentWorkspaceSessionId : currentChatSessionId;
     if (!targetSessionId || !content.trim() || !session) return;
     
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content, timestamp: Date.now() };
@@ -199,10 +190,11 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     try {
-      if (activeView === 'workspace') {
+      if (isWorkspace) {
         const result = await generateWorkspaceAgentResponse(content, workspaceFiles, settings.modelName);
-        await applyActions(result.actions);
-        const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: `**Done:** ${result.explanation}`, timestamp: Date.now() };
+        if (result.actions.length > 0) await applyActions(result.actions);
+        
+        const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: result.explanation, timestamp: Date.now() };
         setSessions(prev => prev.map(s => s.id === targetSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
         await supabase.from('messages').insert({ id: assistantMsg.id, session_id: targetSessionId, role: 'assistant', content: assistantMsg.content, timestamp: assistantMsg.timestamp });
         setAgentLogs(prev => [...prev, { id: crypto.randomUUID(), msg: result.explanation, role: 'agent', timestamp: Date.now(), actions: result.actions }]);
@@ -213,6 +205,8 @@ const App: React.FC = () => {
         setSessions(prev => prev.map(s => s.id === targetSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
         await supabase.from('messages').insert({ id: assistantMsg.id, session_id: targetSessionId, role: 'assistant', content: assistantMsg.content, timestamp: assistantMsg.timestamp });
       }
+    } catch (err) {
+      console.error("Send Error:", err);
     } finally { setIsLoading(false); }
   }, [currentChatSessionId, currentWorkspaceSessionId, sessions, workspaceFiles, settings.modelName, session, activeView]);
 
@@ -223,14 +217,14 @@ const App: React.FC = () => {
     <div className="fixed bottom-0 left-0 right-0 h-20 bg-[var(--bg-sidebar)] border-t border-[var(--border)] flex items-center justify-around px-2 z-[200] pb-2">
       {[
         { id: 'chat', icon: MessageSquare, label: 'Chat' },
-        { id: 'workspace', icon: FolderOpen, label: 'Code' },
-        { id: 'dashboard', icon: BarChart3, label: 'Stats' },
-        { id: 'profile', icon: User, label: 'Me' }
+        { id: 'workspace', icon: FolderOpen, label: 'Files' },
+        { id: 'dashboard', icon: BarChart3, label: 'Progress' },
+        { id: 'profile', icon: User, label: 'Account' }
       ].map(item => (
         <button
           key={item.id}
           onClick={() => setActiveView(item.id as ViewType)}
-          className={`flex flex-col items-center gap-1.5 px-4 py-2 transition-all rounded-2xl ${activeView === item.id ? 'text-[#10a37f] bg-[#10a37f]/5' : 'text-gray-500'}`}
+          className={`flex flex-col items-center gap-1.5 px-4 py-2 transition-all rounded-2xl ${activeView === item.id ? 'text-[#10a37f] bg-[#10a37f]/5' : 'text-[var(--text-dim)]'}`}
         >
           <item.icon className={`w-5 h-5 ${activeView === item.id ? 'fill-[#10a37f]/10' : ''}`} />
           <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
@@ -239,103 +233,17 @@ const App: React.FC = () => {
     </div>
   );
 
-  const MobileHeader = () => (
-    <header className="h-14 border-b border-[var(--border)] flex items-center justify-between px-6 bg-[var(--bg-sidebar)] shrink-0 sticky top-0 z-[100]">
-      <div className="flex items-center gap-3">
-        <div className="bg-[#10a37f] p-1.5 rounded-lg">
-          <CodeIcon className="w-4 h-4 text-white" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-black uppercase tracking-tighter italic text-[var(--text-main)] leading-none">Cooder AI</span>
-          <span className="text-[7px] font-black uppercase tracking-widest text-[#10a37f] flex items-center gap-1">
-            <Smartphone className="w-2 h-2" /> Mobile Optimized
-          </span>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        {activeView === 'chat' && (
-          <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 bg-white/5 rounded-xl text-gray-400">
-            <PanelLeft className="w-4 h-4" />
-          </button>
-        )}
-        <button onClick={() => setActiveView('settings')} className="p-2 bg-white/5 rounded-xl text-gray-400">
-          <SettingsIcon className="w-4 h-4" />
-        </button>
-      </div>
-    </header>
-  );
-
-  if (isMobile) {
-    return (
-      <div className="flex flex-col h-screen w-full bg-[var(--bg-main)] text-[var(--text-main)] overflow-hidden">
-        <MobileHeader />
-        <main className="flex-1 overflow-hidden relative pb-20">
-          {activeView === 'chat' && (
-            <div className="h-full flex flex-col">
-              {showSidebar && (
-                <div className="absolute inset-0 z-[150] bg-black/80 backdrop-blur-sm">
-                  <div className="h-full w-[85%] bg-[var(--bg-sidebar)] border-r border-[var(--border)]">
-                    <div className="flex justify-end p-4">
-                      <button onClick={() => setShowSidebar(false)} className="p-2 rounded-full bg-white/5 text-gray-500"><Plus className="w-5 h-5 rotate-45" /></button>
-                    </div>
-                    <Sidebar 
-                      sessions={sessions.filter(s => s.title !== 'Workspace Agent')} 
-                      currentSessionId={currentChatSessionId} 
-                      onSelectSession={(id) => { setCurrentChatSessionId(id); setShowSidebar(false); }} 
-                      onNewChat={async () => {
-                        const id = crypto.randomUUID();
-                        await supabase.from('sessions').insert({ id, user_id: session.user.id, title: 'New Session' });
-                        setSessions(prev => [{ id, title: 'New Session', messages: [] }, ...prev]);
-                        setCurrentChatSessionId(id);
-                        setShowSidebar(false);
-                      }} 
-                      onDeleteSession={(id) => {
-                        supabase.from('sessions').delete().eq('id', id).then(() => setSessions(prev => prev.filter(s => s.id !== id)));
-                      }} 
-                      onSetView={setActiveView} activeView={activeView}
-                    />
-                  </div>
-                </div>
-              )}
-              <ChatArea messages={currentChatSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} />
-            </div>
-          )}
-          {activeView === 'workspace' && (
-            <div className="h-full flex flex-col">
-              <div className="flex bg-[var(--bg-sidebar)] p-2 border-b border-[var(--border)]">
-                <button onClick={() => setWorkspaceMobileTab('editor')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${workspaceMobileTab === 'editor' ? 'bg-[#10a37f] text-white' : 'text-gray-500'}`}>Editor</button>
-                <button onClick={() => setWorkspaceMobileTab('ai')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${workspaceMobileTab === 'ai' ? 'bg-[#10a37f] text-white' : 'text-gray-500'}`}>AI Architect</button>
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <div className={`h-full ${workspaceMobileTab === 'editor' ? 'block' : 'hidden'}`}>
-                  <CodeWorkspace files={workspaceFiles} fontSize={settings.fontSize} onImportFiles={(nf) => applyActions(nf.map(f => ({ type: 'CREATE', fileName: f.name, content: f.content, explanation: 'Import' })))} onUpdateFile={handleUpdateFile} onCreateFile={handleCreateFile} onDeleteFile={handleDeleteFile} />
-                </div>
-                <div className={`h-full ${workspaceMobileTab === 'ai' ? 'block' : 'hidden'}`}>
-                  <ChatArea messages={currentWorkspaceSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} isCompact={true} />
-                </div>
-              </div>
-            </div>
-          )}
-          {activeView === 'dashboard' && <Dashboard files={workspaceFiles} logs={agentLogs} />}
-          {activeView === 'settings' && <Settings settings={settings} onUpdate={setSettings} />}
-          {activeView === 'profile' && <Profile user={session.user} sessionsCount={sessions.length} filesCount={workspaceFiles.length} />}
-        </main>
-        <MobileNav />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-[var(--bg-main)] text-[var(--text-main)] overflow-hidden">
       <ActivityBar activeView={activeView} onSetView={(v) => setActiveView(v)} />
       {showSidebar && activeView === 'chat' && (
         <Sidebar 
-          sessions={sessions.filter(s => s.title !== 'Workspace Agent')} 
+          sessions={sessions.filter(s => s.title !== 'Workspace Buddy')} 
           currentSessionId={currentChatSessionId} onSelectSession={setCurrentChatSessionId} 
           onNewChat={async () => {
             const id = crypto.randomUUID();
-            await supabase.from('sessions').insert({ id, user_id: session.user.id, title: 'New Session' });
-            setSessions(prev => [{ id, title: 'New Session', messages: [] }, ...prev]);
+            await supabase.from('sessions').insert({ id, user_id: session.user.id, title: 'New Chat' });
+            setSessions(prev => [{ id, title: 'New Chat', messages: [] }, ...prev]);
             setCurrentChatSessionId(id);
           }} 
           onDeleteSession={(id) => {
@@ -350,11 +258,11 @@ const App: React.FC = () => {
             {activeView === 'chat' && <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-white/5 rounded-xl text-gray-500"><PanelLeft className="w-4 h-4" /></button>}
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#10a37f]" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 truncate">Cooder AI v4.5.0</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-dim)] truncate">Cooder AI v4.7</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {activeView === 'workspace' && <button onClick={() => setShowAiPanel(!showAiPanel)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all ${showAiPanel ? 'bg-[#10a37f]/10 text-[#10a37f] border-[#10a37f]/20' : 'text-gray-500 border-white/5 hover:bg-white/5'}`}><PanelRight className="w-3.5 h-3.5" /><span>AI Engine</span></button>}
+            {activeView === 'workspace' && <button onClick={() => setShowAiPanel(!showAiPanel)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all ${showAiPanel ? 'bg-[#10a37f]/10 text-[#10a37f] border-[#10a37f]/20' : 'text-[var(--text-dim)] border-[var(--border)] hover:bg-white/5'}`}><PanelRight className="w-3.5 h-3.5" /><span>AI Buddy</span></button>}
             <div className="w-8 h-8 rounded-full bg-[#10a37f] flex items-center justify-center text-[10px] font-bold text-white shadow-lg">{session.user.email?.[0].toUpperCase() || 'U'}</div>
           </div>
         </header>
@@ -363,9 +271,9 @@ const App: React.FC = () => {
           {activeView === 'workspace' && (
              <div className="flex h-full w-full">
                 <div className="flex-1">
-                  <CodeWorkspace files={workspaceFiles} fontSize={settings.fontSize} onImportFiles={(nf) => applyActions(nf.map(f => ({ type: 'CREATE', fileName: f.name, content: f.content, explanation: 'Import' })))} onUpdateFile={handleUpdateFile} onCreateFile={handleCreateFile} onDeleteFile={handleDeleteFile} />
+                  <CodeWorkspace files={workspaceFiles} fontSize={settings.fontSize} onImportFiles={(nf) => applyActions(nf.map(f => ({ type: 'CREATE', fileName: f.name, content: f.content, explanation: 'Import' })))} onUpdateFile={handleUpdateFile} onCreateFile={handleCreateFile} onDeleteFile={handleDeleteFile} theme={settings.theme} />
                 </div>
-                <div className={`workspace-ai-panel flex flex-col bg-[var(--bg-sidebar)] border-l border-[var(--border)] overflow-hidden ${showAiPanel ? 'w-[400px]' : 'w-0 invisible'}`}>
+                <div className={`workspace-ai-panel flex flex-col bg-[var(--bg-sidebar)] border-l border-[var(--border)] overflow-hidden transition-all duration-300 ${showAiPanel ? 'w-[400px]' : 'w-0 invisible'}`}>
                   <div className="flex-1">
                     <ChatArea messages={currentWorkspaceSession?.messages || []} onSendMessage={handleSendMessage} isLoading={isLoading} fontSize={settings.fontSize} isCompact={true} />
                   </div>
@@ -377,6 +285,7 @@ const App: React.FC = () => {
           {activeView === 'profile' && <Profile user={session.user} sessionsCount={sessions.length} filesCount={workspaceFiles.length} />}
         </div>
       </main>
+      {isMobile && <MobileNav />}
     </div>
   );
 };

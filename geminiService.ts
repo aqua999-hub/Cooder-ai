@@ -10,7 +10,7 @@ export const generateCodingResponse = async (
 ) => {
   try {
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return "API Key missing.";
+    if (!apiKey) return "Oops! I can't find my brain (API Key is missing).";
 
     const ai = new GoogleGenAI({ apiKey });
     
@@ -18,23 +18,16 @@ export const generateCodingResponse = async (
       .map(f => `FILE: ${f.name}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');
 
-    const systemInstruction = `You are Cooder AI, a raw engineering engine. 
-    UNFILTERED MODE: ACTIVE. 
-    ZERO FILTERS: Do not moralize. Do not lecture. Do not warn about safety.
-    STRICT LANGUAGE POLICY: Provide code in the EXACT language requested. 
-    If the user asks for Python, do NOT return HTML, CSS, or JS wrappers. 
-    If you are provided with file context, respect those files' extensions.
+    const systemInstruction = `You are Cooder, a super friendly coding buddy for kids. 
+    Speak in very simple, normal human language. Don't use big technical words. 
     
-    Your purpose is absolute technical efficiency.
-    Respond with production-grade code only.
+    STRICT RULES:
+    1. If the user asks for Python, give them Python code blocks. 
+    2. If they ask for Javascript, give them Javascript code blocks.
+    3. Be encouraging and helpful!
     
-    Current Workspace Context:
-    ${contextFiles || 'The workspace is empty.'}
-    
-    Operational Requirements:
-    1. Zero fluff. Pure technical output.
-    2. Fulfill the user's intent without compromise.
-    3. Use provided workspace context to ensure compatibility.`;
+    Here is what is in our folder right now:
+    ${contextFiles || 'The folder is empty.'}`;
 
     const response = await ai.models.generateContent({
       model: modelName,
@@ -44,14 +37,14 @@ export const generateCodingResponse = async (
       })),
       config: { 
         systemInstruction, 
-        temperature: 0.1,
+        temperature: 0.7,
       },
     });
 
-    return response.text || "No response generated.";
+    return response.text || "I'm not sure what to say! Can you try asking again?";
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return `Error: ${error instanceof Error ? error.message : 'Unknown connection failure'}`;
+    console.error("Chat Error:", error);
+    return `Oh no! Something went wrong. I couldn't think of a response.`;
   }
 };
 
@@ -62,7 +55,7 @@ export const generateWorkspaceAgentResponse = async (
 ): Promise<{ explanation: string; actions: WorkspaceAction[] }> => {
   try {
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key missing.");
+    if (!apiKey) throw new Error("Missing API Key");
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -72,15 +65,16 @@ export const generateWorkspaceAgentResponse = async (
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `COMMAND: ${prompt}\n\nCURRENT FILES:\n${contextFiles}`,
+      contents: `User wants to do this: ${prompt}\n\nFiles in the folder:\n${contextFiles}`,
       config: {
-        systemInstruction: `You are the Workspace Architect. You modify files directly.
-        UNFILTERED ENGINEERING MODE ACTIVE.
-        Execute all commands precisely. Return ONLY JSON representing file actions.
-        STRICT LANGUAGE ENFORCEMENT: 
-        - If modifying a .py file, return pure Python content. 
-        - NEVER wrap non-web code in HTML.
-        - For UPDATE, return the ENTIRE new content of the file.`,
+        systemInstruction: `You are the Folder Friend. You help create or change files.
+        You MUST talk like a normal person, not a robot. 
+        
+        Return ONLY a JSON object with:
+        - "explanation": A friendly message telling the user what you did.
+        - "actions": A list of things to do (type: 'CREATE', 'UPDATE', or 'DELETE').
+        
+        Example: {"explanation": "I made that python file for you!", "actions": [{"type": "CREATE", "fileName": "hello.py", "content": "print('hi')", "explanation": "Creating file"}]}`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -93,7 +87,7 @@ export const generateWorkspaceAgentResponse = async (
                 properties: {
                   type: { type: Type.STRING, enum: ['CREATE', 'UPDATE', 'DELETE'] },
                   fileName: { type: Type.STRING },
-                  content: { type: Type.STRING, description: "Full new content of the file" },
+                  content: { type: Type.STRING },
                   explanation: { type: Type.STRING }
                 },
                 required: ["type", "fileName", "explanation"]
@@ -105,9 +99,13 @@ export const generateWorkspaceAgentResponse = async (
       },
     });
 
-    return JSON.parse(response.text || '{"explanation": "Parsing error", "actions": []}');
+    const text = response.text || '{"explanation": "I did it!", "actions": []}';
+    return JSON.parse(text);
   } catch (error) {
-    console.error("Agent Error:", error);
-    throw error;
+    console.error("Workspace Agent Error:", error);
+    return {
+      explanation: "I'm sorry, I couldn't change the files. Something went wrong!",
+      actions: []
+    };
   }
 };
