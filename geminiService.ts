@@ -18,16 +18,16 @@ export const generateCodingResponse = async (
       .map(f => `FILE: ${f.name}\nCONTENT:\n${f.content}`)
       .join('\n\n---\n\n');
 
-    const systemInstruction = `You are Cooder, a super friendly coding buddy for kids. 
-    Speak in very simple, normal human language. Don't use big technical words. 
+    const systemInstruction = `You are Cooder, a super friendly coding buddy. 
+    Speak in very simple, normal human language like a friend. No tech jargon.
     
     STRICT RULES:
-    1. If the user asks for Python, give them Python code blocks. 
-    2. If they ask for Javascript, give them Javascript code blocks.
-    3. Be encouraging and helpful!
+    1. If they ask for Python, give Python. 
+    2. If they ask for JS, give JS.
+    3. Always be helpful!
     
-    Here is what is in our folder right now:
-    ${contextFiles || 'The folder is empty.'}`;
+    Current files:
+    ${contextFiles || 'None yet.'}`;
 
     const response = await ai.models.generateContent({
       model: modelName,
@@ -41,10 +41,10 @@ export const generateCodingResponse = async (
       },
     });
 
-    return response.text || "I'm not sure what to say! Can you try asking again?";
+    return response.text || "I'm not sure what to say! Can you try again?";
   } catch (error) {
     console.error("Chat Error:", error);
-    return `Oh no! Something went wrong. I couldn't think of a response.`;
+    return `Oh no! Something went wrong. I couldn't think of anything.`;
   }
 };
 
@@ -55,7 +55,7 @@ export const generateWorkspaceAgentResponse = async (
 ): Promise<{ explanation: string; actions: WorkspaceAction[] }> => {
   try {
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("Missing API Key");
+    if (!apiKey) throw new Error("Missing Key");
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -65,16 +65,16 @@ export const generateWorkspaceAgentResponse = async (
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `User wants to do this: ${prompt}\n\nFiles in the folder:\n${contextFiles}`,
+      contents: `User wants: ${prompt}\n\nFiles: ${contextFiles}`,
       config: {
-        systemInstruction: `You are the Folder Friend. You help create or change files.
-        You MUST talk like a normal person, not a robot. 
+        systemInstruction: `You are the Folder Friend. You help create/change files.
+        Talk like a normal person. Use phrases like "I did it!" or "Done!".
         
-        Return ONLY a JSON object with:
-        - "explanation": A friendly message telling the user what you did.
-        - "actions": A list of things to do (type: 'CREATE', 'UPDATE', or 'DELETE').
-        
-        Example: {"explanation": "I made that python file for you!", "actions": [{"type": "CREATE", "fileName": "hello.py", "content": "print('hi')", "explanation": "Creating file"}]}`,
+        Return ONLY JSON:
+        {
+          "explanation": "Friendly short sentence about what you did.",
+          "actions": [{"type": "CREATE"|"UPDATE"|"DELETE", "fileName": "name.ext", "content": "full code", "explanation": "why"}]
+        }`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -99,12 +99,12 @@ export const generateWorkspaceAgentResponse = async (
       },
     });
 
-    const text = response.text || '{"explanation": "I did it!", "actions": []}';
+    const text = response.text || '{"explanation": "Done!", "actions": []}';
     return JSON.parse(text);
   } catch (error) {
-    console.error("Workspace Agent Error:", error);
+    console.error("Agent Error:", error);
     return {
-      explanation: "I'm sorry, I couldn't change the files. Something went wrong!",
+      explanation: "Oops, something went wrong and I couldn't change the files.",
       actions: []
     };
   }

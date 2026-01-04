@@ -11,7 +11,7 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { ChatSession, Message, WorkspaceFile, WorkspaceAction, ViewType, AgentLogEntry, AppSettings } from './types';
 import { generateCodingResponse, generateWorkspaceAgentResponse } from './geminiService';
-import { PanelLeft, Sparkles, PanelRight, MessageSquare, Code as CodeIcon, User, BarChart3, FolderOpen, Smartphone } from 'lucide-react';
+import { PanelLeft, Sparkles, PanelRight, MessageSquare, Code as CodeIcon, User, BarChart3, FolderOpen } from 'lucide-react';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -29,7 +29,6 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showAiPanel, setShowAiPanel] = useState(window.innerWidth > 1200);
-  const [workspaceMobileTab, setWorkspaceMobileTab] = useState<'editor' | 'ai'>('editor');
   
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('cs_settings');
@@ -80,8 +79,7 @@ const App: React.FC = () => {
         const { data: sessionsData } = await supabase
           .from('sessions')
           .select('*, messages(*)')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
+          .eq('user_id', session.user.id);
 
         const { data: filesData } = await supabase
           .from('workspace_files')
@@ -94,12 +92,11 @@ const App: React.FC = () => {
             title: s.title,
             messages: (s.messages || []).sort((a: any, b: any) => a.timestamp - b.timestamp)
           }));
-          setSessions(loadedSessions);
           
           let chatSess = loadedSessions.find(s => s.title !== 'Workspace Buddy');
           let wsSess = loadedSessions.find(s => s.title === 'Workspace Buddy');
 
-          if (!chatSess || !wsSess || chatSess.id === wsSess.id) {
+          if (!chatSess || !wsSess || (chatSess && wsSess && chatSess.id === wsSess.id)) {
             const chatID = chatSess?.id || crypto.randomUUID();
             const wsID = crypto.randomUUID();
             
@@ -109,9 +106,15 @@ const App: React.FC = () => {
             
             await supabase.from('sessions').insert(inserts);
             
+            const newSessions = [...loadedSessions];
+            if (!chatSess) newSessions.push({ id: chatID, title: 'Main Chat', messages: [] });
+            newSessions.push({ id: wsID, title: 'Workspace Buddy', messages: [] });
+            
+            setSessions(newSessions);
             setCurrentChatSessionId(chatID);
             setCurrentWorkspaceSessionId(wsID);
           } else {
+            setSessions(loadedSessions);
             setCurrentChatSessionId(chatSess.id);
             setCurrentWorkspaceSessionId(wsSess.id);
           }
@@ -194,7 +197,7 @@ const App: React.FC = () => {
         const result = await generateWorkspaceAgentResponse(content, workspaceFiles, settings.modelName);
         if (result.actions.length > 0) await applyActions(result.actions);
         
-        const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: result.explanation, timestamp: Date.now() };
+        const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: result.explanation || "I did it!", timestamp: Date.now() };
         setSessions(prev => prev.map(s => s.id === targetSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
         await supabase.from('messages').insert({ id: assistantMsg.id, session_id: targetSessionId, role: 'assistant', content: assistantMsg.content, timestamp: assistantMsg.timestamp });
         setAgentLogs(prev => [...prev, { id: crypto.randomUUID(), msg: result.explanation, role: 'agent', timestamp: Date.now(), actions: result.actions }]);
@@ -207,6 +210,8 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Send Error:", err);
+      const errorMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: "Oops, something went wrong!", timestamp: Date.now() };
+      setSessions(prev => prev.map(s => s.id === targetSessionId ? { ...s, messages: [...s.messages, errorMsg] } : s));
     } finally { setIsLoading(false); }
   }, [currentChatSessionId, currentWorkspaceSessionId, sessions, workspaceFiles, settings.modelName, session, activeView]);
 
@@ -218,7 +223,7 @@ const App: React.FC = () => {
       {[
         { id: 'chat', icon: MessageSquare, label: 'Chat' },
         { id: 'workspace', icon: FolderOpen, label: 'Files' },
-        { id: 'dashboard', icon: BarChart3, label: 'Progress' },
+        { id: 'dashboard', icon: BarChart3, label: 'Stats' },
         { id: 'profile', icon: User, label: 'Account' }
       ].map(item => (
         <button
@@ -249,7 +254,7 @@ const App: React.FC = () => {
           onDeleteSession={(id) => {
             supabase.from('sessions').delete().eq('id', id).then(() => setSessions(prev => prev.filter(s => s.id !== id)));
           }} 
-          onSetView={setActiveView} activeView={activeView} userEmail={session.user.email} stats={{ files: workspaceFiles.length, logs: agentLogs.length }}
+          onSetView={setActiveView} activeView={activeView} stats={{ files: workspaceFiles.length, logs: agentLogs.length }}
         />
       )}
       <main className="flex-1 flex flex-col min-w-0 relative">
@@ -258,7 +263,7 @@ const App: React.FC = () => {
             {activeView === 'chat' && <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-white/5 rounded-xl text-gray-500"><PanelLeft className="w-4 h-4" /></button>}
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#10a37f]" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-dim)] truncate">Cooder AI v4.7</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-dim)] truncate">Cooder Buddy v4.8</span>
             </div>
           </div>
           <div className="flex items-center gap-3">

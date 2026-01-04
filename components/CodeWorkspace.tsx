@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
-import Editor, { useMonaco } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 import { WorkspaceFile } from '../types';
 import { 
   Code, 
@@ -94,12 +94,12 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
   const handleConfirmCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newFileName.trim()) {
-      setValidationError("Please give your file a name!");
+      setValidationError("Give your file a name!");
       return;
     }
     const cleanExt = newFileExt.trim().toLowerCase().replace(/^\./, '');
     if (!LANGUAGE_MAP[cleanExt]) {
-      setValidationError("I don't know that file type!");
+      setValidationError("not a valid format");
       return;
     }
     const fullName = `${newFileName.trim()}.${cleanExt}`;
@@ -112,7 +112,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
   };
 
   const handleRequestDelete = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
+    if (window.confirm(`Delete "${name}"?`)) {
       onDeleteFile(id);
       if (selectedFileId === id) setSelectedFileId(null);
     }
@@ -125,14 +125,14 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
   return (
     <div className="flex h-full flex-col bg-[var(--bg-main)] overflow-hidden relative">
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md bg-[var(--bg-card)] border border-[var(--border)] rounded-3xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <FilePlus2 className="w-5 h-5 text-[#10a37f]" />
                 <h3 className="text-lg font-bold">New File</h3>
               </div>
-              <button onClick={() => setIsCreateModalOpen(false)} className="p-2 text-gray-500"><X className="w-5 h-5" /></button>
+              <button onClick={() => setIsCreateModalOpen(false)} className="p-2 text-[var(--text-dim)]"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleConfirmCreate} className="space-y-4">
               {validationError && (
@@ -141,8 +141,8 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
                 </div>
               )}
               <div className="flex gap-2">
-                <input autoFocus type="text" placeholder="File name" value={newFileName} onChange={(e) => { setNewFileName(e.target.value); setValidationError(null); }} className="flex-1 bg-white/5 border border-[var(--border)] rounded-xl px-4 py-3 text-sm focus:outline-none text-[var(--text-main)]" />
-                <input type="text" placeholder="py" value={newFileExt} onChange={(e) => { setNewFileExt(e.target.value); setValidationError(null); }} className="w-20 bg-white/5 border border-[var(--border)] rounded-xl px-4 py-3 text-sm focus:outline-none text-[var(--text-main)]" />
+                <input autoFocus type="text" placeholder="File name" value={newFileName} onChange={(e) => { setNewFileName(e.target.value); setValidationError(null); }} className="flex-1 bg-[var(--bg-sidebar)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm focus:outline-none text-[var(--text-main)]" />
+                <input type="text" placeholder="py" value={newFileExt} onChange={(e) => { setNewFileExt(e.target.value); setValidationError(null); }} className="w-20 bg-[var(--bg-sidebar)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm focus:outline-none text-[var(--text-main)] text-center" />
               </div>
               <button type="submit" className="w-full py-4 bg-[#10a37f] rounded-xl text-white font-bold">Create File</button>
             </form>
@@ -152,14 +152,14 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
 
       <div className="h-14 px-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--bg-sidebar)] z-50 shrink-0">
         <div className="flex items-center gap-4">
-          <button onClick={() => setShowFileExplorer(!showFileExplorer)} className="p-2 text-gray-400 hover:text-[#10a37f]">
+          <button onClick={() => setShowFileExplorer(!showFileExplorer)} className="p-2 text-[var(--text-dim)] hover:text-[#10a37f]">
             <SidebarIcon className="w-4 h-4" />
           </button>
           <span className="text-[10px] font-bold uppercase text-[var(--text-dim)] tracking-widest">My Folder</span>
         </div>
         <div className="flex items-center gap-2">
           {isModified && <button onClick={handleSave} className="px-3 py-1.5 bg-[#10a37f] text-white text-[10px] font-bold uppercase rounded-lg">Save</button>}
-          <button onClick={handleDownload} className="px-3 py-1.5 bg-white/5 text-[var(--text-dim)] text-[10px] font-bold uppercase rounded-lg border border-[var(--border)]">Download All</button>
+          <button onClick={handleDownload} className="px-3 py-1.5 bg-[var(--bg-main)] text-[var(--text-dim)] text-[10px] font-bold uppercase rounded-lg border border-[var(--border)]">Download All</button>
         </div>
       </div>
 
@@ -173,7 +173,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
             <div className="flex-1 overflow-y-auto space-y-1">
               {files.map(file => (
                 <div key={file.id} className="group relative">
-                  <button onClick={() => { setSelectedFileId(file.id); if (isMobile) setShowFileExplorer(false); }} className={`w-full text-left px-3 py-3 rounded-xl text-xs flex items-center gap-3 transition-all ${selectedFileId === file.id ? 'bg-[#10a37f]/10 text-[#10a37f]' : 'text-[var(--text-dim)] hover:bg-white/5'}`}>
+                  <button onClick={() => { setSelectedFileId(file.id); if (isMobile) setShowFileExplorer(false); }} className={`w-full text-left px-3 py-3 rounded-xl text-xs flex items-center gap-3 transition-all ${selectedFileId === file.id ? 'bg-[#10a37f]/10 text-[#10a37f]' : 'text-[var(--text-dim)] hover:bg-[var(--bg-main)]'}`}>
                     <FileCode className="w-3.5 h-3.5" /> <span className="truncate">{file.name}</span>
                   </button>
                   <button onClick={() => handleRequestDelete(file.id, file.name)} className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -200,7 +200,7 @@ export const CodeWorkspace: React.FC<CodeWorkspaceProps> = ({
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-               <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-[var(--border)]">
+               <div className="w-16 h-16 bg-[var(--bg-card)] rounded-3xl flex items-center justify-center mb-6 border border-[var(--border)]">
                  <Code className="w-8 h-8 text-[#10a37f]" />
                </div>
                <h2 className="text-xl font-bold mb-2">My Folder is Empty</h2>
